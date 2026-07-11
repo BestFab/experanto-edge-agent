@@ -59,9 +59,19 @@ class MqttTransport(Transport):
                 c.tls_insecure_set(True)
         c.on_connect = lambda *_: self._connected.set()
         c.on_message = lambda _c, _u, msg: self._inbox.put(msg)
-        c.connect(self.cfg.broker_host, self.cfg.broker_port, keepalive=max(30, self.cfg.interval))
-        c.loop_start()
-        if not self._connected.wait(self.cfg.connect_timeout):
+        # Socket-level failures (ConnectionRefused, DNS, timeout, TLS) all subclass OSError;
+        # normalise them to TransportError so run_cycle() can buffer instead of crashing.
+        try:
+            c.connect(self.cfg.broker_host, self.cfg.broker_port, keepalive=max(30, self.cfg.interval))
+            c.loop_start()
+            connected = self._connected.wait(self.cfg.connect_timeout)
+        except OSError as e:
+            try:
+                c.loop_stop()
+            except Exception:
+                pass
+            raise TransportError(f"connessione al broker fallita: {e}") from e
+        if not connected:
             c.loop_stop()
             raise TransportError("timeout connessione al broker")
         self._client = c

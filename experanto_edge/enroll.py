@@ -68,6 +68,16 @@ def discover_datalogger(subnet: Optional[str] = None, port: int = 80) -> Optiona
 
 def local_ips() -> List[str]:
     ips: List[str] = []
+    # Primary source IP first. gethostname() alone is unreliable on Debian/Raspberry Pi
+    # OS, where the hostname maps to 127.0.1.1 (filtered below) and the real LAN address
+    # is never returned — leaving the status payload with no reachable IP for SSH.
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))  # no packet sent; just picks the default-route source
+        ips.append(s.getsockname()[0])
+        s.close()
+    except Exception:
+        pass
     try:
         for info in socket.getaddrinfo(socket.gethostname(), None):
             addr = info[4][0]

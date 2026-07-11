@@ -73,7 +73,7 @@ class Agent:
         return True, "riavvio (systemd Restart=always riavvia il processo)"
 
     def reboot_host(self):
-        return False, "reboot disabilitato in E0"
+        return update.reboot(self.cfg)
 
     def diagnostics(self) -> dict:
         return {
@@ -183,12 +183,14 @@ class Agent:
             "avvio agente %s device=%s interval=%ss",
             __version__, self.cfg.device_code, self.cfg.interval,
         )
+        update.write_health_marker(self.cfg)  # signal "process is up" ASAP (OTA rollback watches it)
         while not self._stop.is_set():
             start = time.time()
             try:
                 self.run_cycle()
             except Exception:
                 log.exception("errore nel ciclo")
+            update.write_health_marker(self.cfg)
             self._wake.clear()
             self._wake.wait(max(0.0, self.cfg.interval - (time.time() - start)))
         log.info("arresto agente")
@@ -200,6 +202,8 @@ def main(argv=None) -> int:
     ap.add_argument("--once", action="store_true", help="esegue un solo ciclo ed esce")
     ap.add_argument("--enroll", help="scrive CODE:SECRET[:STATION_ID] in config")
     ap.add_argument("--discover-datalogger", action="store_true", help="scansiona la LAN")
+    ap.add_argument("--selfcheck", action="store_true",
+                    help="probe di salute (import+config+transport), usato dall'OTA prima dello swap")
     args = ap.parse_args(argv)
 
     cfg = Config.load(args.config)
@@ -207,6 +211,17 @@ def main(argv=None) -> int:
         level=getattr(logging, cfg.log_level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+
+    if args.selfcheck:
+        # Arrivare qui significa che gli import del pacchetto sono andati a buon fine.
+        # Costruiamo il transport (senza connettere) per esercitare il nuovo codice.
+        try:
+            MqttTransport(cfg)
+            print(f"selfcheck ok {__version__}")
+            return 0
+        except Exception as e:  # noqa: BLE001
+            print(f"selfcheck FAILED: {e}", file=sys.stderr)
+            return 1
 
     setup_only = False
     if args.enroll:

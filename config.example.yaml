@@ -25,3 +25,14 @@ command_wait: 3.0                # seconds waited for a retained command each cy
 buffer_path: "/var/lib/experanto-edge/buffer.db"
 buffer_max_rows: 5000
 log_level: "INFO"
+health_path: "/var/lib/experanto-edge/health"   # touched each cycle; OTA rollback watches it
+
+# --- OTA (server-initiated, signed releases) ---
+# Releases are signed server-side (Ed25519) and served under update_base_url as
+#   experanto-edge-<version>.tar.gz  +  experanto-edge-<version>.json (manifest).
+# The agent verifies sha256 + signature against update_public_key before the root
+# helper installs/swaps/restarts (with automatic rollback).
+update_base_url: ""              # e.g. https://mqtt.experanto.it/releases
+update_public_key: ""           # base64 of the raw 32-byte Ed25519 public key (from sign_release.py keygen)
+app_dir: "/opt/experanto-edge"
+ota_helper: "/opt/experanto-edge/ota-helper.sh"

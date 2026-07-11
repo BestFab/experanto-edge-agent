@@ -42,6 +42,17 @@ class Config:
     buffer_path: str = "/var/lib/experanto-edge/buffer.db"
     buffer_max_rows: int = 5000
     log_level: str = "INFO"
+    health_path: str = "/var/lib/experanto-edge/health"  # touched each cycle; OTA rollback watches it
+
+    # --- OTA (phase E5) ---
+    # Releases are signed server-side (Ed25519) and served under update_base_url as
+    #   experanto-edge-{version}.tar.gz  +  experanto-edge-{version}.json  (manifest)
+    # The agent verifies sha256 + signature against update_public_key, then hands the
+    # privileged install/swap/restart to a root helper (ota_helper) via sudo -n.
+    update_base_url: str = ""            # e.g. https://mqtt.experanto.it/releases
+    update_public_key: str = ""         # base64 of the raw 32-byte Ed25519 public key
+    app_dir: str = "/opt/experanto-edge"          # holds current -> releases/{version}
+    ota_helper: str = "/opt/experanto-edge/ota-helper.sh"
 
     # --- persisted runtime state ---
     last_command_id: str = ""

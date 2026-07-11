@@ -8,7 +8,7 @@ Wants=network-online.target
 Type=simple
 User=experanto-edge
 Group=experanto-edge
-ExecStart=/opt/experanto-edge/venv/bin/experanto-edge
+ExecStart=/opt/experanto-edge/current/venv/bin/experanto-edge
 Restart=always
 RestartSec=10
 

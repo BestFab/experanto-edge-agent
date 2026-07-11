@@ -9,6 +9,7 @@ dependencies = [
     "paho-mqtt>=1.6",
     "requests>=2.25",
     "PyYAML>=5.4",
+    "cryptography>=41",     # Ed25519 verification of signed OTA releases (E5)
 ]
 
 [project.optional-dependencies]

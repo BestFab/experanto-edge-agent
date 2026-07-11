@@ -1,0 +1,27 @@
+# Experanto Edge agent — example configuration.
+# Real config lives at /etc/experanto-edge/config.yaml (written by install.sh / --enroll).
+# NEVER commit a real config: it contains the device secret.
+
+# --- identity (from enrollment in the Experanto SPA) ---
+device_code: "EXP-XXXX-XXXX"     # also the MQTT username
+secret: "REPLACE_ME"             # device secret (MQTT password); shown once at enrollment
+station_id: ""                   # Experanto station UUID this device feeds
+
+# --- broker ---
+broker_host: "mqtt.experanto.it"
+broker_port: 8883
+tls: true
+ca_cert: null                    # path to a CA bundle; null = system trust store
+tls_insecure: false              # DEV ONLY — never true in production
+
+# --- local datalogger ---
+reader_type: "solarlog_getjp"    # Solar-Log Base 2000 local getjp API
+datalogger_ip: ""                # e.g. 192.168.1.50 (auto-discovered if empty)
+datalogger_port: 80
+
+# --- behaviour ---
+interval: 300                    # seconds between cycles (= worker poll rate)
+command_wait: 3.0                # seconds waited for a retained command each cycle
+buffer_path: "/var/lib/experanto-edge/buffer.db"
+buffer_max_rows: 5000
+log_level: "INFO"

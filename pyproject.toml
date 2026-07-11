@@ -1,0 +1,25 @@
+[project]
+name = "experanto-edge-agent"
+version = "0.1.0"
+description = "Experanto Edge agent — bridges a local datalogger (Solar-Log Base 2000) to Experanto over MQTT."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = [
+    "paho-mqtt>=1.6",
+    "requests>=2.25",
+    "PyYAML>=5.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+experanto-edge = "experanto_edge.main:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["experanto_edge*"]

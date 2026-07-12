@@ -3,11 +3,11 @@
 # Usage:
 #   sudo ./install.sh --code EXP-XXXX-XXXX --secret <SECRET> [--station <UUID>] \
 #                     [--broker mqtt.experanto.it] [--datalogger-ip 192.168.1.50] \
-#                     [--ssh-bastion vps.tuo.it --ssh-reverse-port 22016 [--ssh-persistent]]
-# With --ssh-bastion the installer sets up remote SSH via a reverse tunnel to YOUR bastion
-# (no third party): it generates a key and prints the public key to authorize on the bastion.
-# --ssh-persistent keeps the tunnel always up (for the bring-up); otherwise it's on-demand
-# via the `open_ssh` command. See BASTION.md for the server side.
+#                     [--wg-endpoint vps:51820 --wg-hub-pubkey <KEY> --wg-address 10.8.0.5/32 [--wg-persistent]]
+# With --wg-endpoint the installer joins the Pi to YOUR WireGuard hub (no third party): it
+# generates a keypair, writes /etc/wireguard/wg-experanto.conf, and prints the Pi's PUBLIC key
+# to register as a peer on the hub. --wg-persistent keeps the link always up (for the bring-up);
+# otherwise it's on-demand via `open_ssh`. See WG_HUB.md for the server side.
 #
 # Layout (rollback-friendly, phase E5):
 #   /opt/experanto-edge/releases/<name>/venv        one venv per release
@@ -25,8 +25,7 @@ SVC_USER=experanto-edge
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 CODE=""; SECRET=""; STATION=""; BROKER=""; DL_IP=""; UPD_URL=""; UPD_KEY=""
-SSH_BASTION=""; SSH_BASTION_USER="edge-tunnel"; SSH_BASTION_PORT=22
-SSH_REVERSE_PORT=""; SSH_LOCAL_PORT=22; SSH_PERSISTENT=""
+WG_ENDPOINT=""; WG_HUB_PUBKEY=""; WG_ADDRESS=""; WG_SSH_USER=""; WG_PERSISTENT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --code) CODE="$2"; shift 2;;
@@ -36,12 +35,11 @@ while [[ $# -gt 0 ]]; do
     --datalogger-ip) DL_IP="$2"; shift 2;;
     --update-base-url) UPD_URL="$2"; shift 2;;
     --update-pubkey) UPD_KEY="$2"; shift 2;;
-    --ssh-bastion) SSH_BASTION="$2"; shift 2;;
-    --ssh-bastion-user) SSH_BASTION_USER="$2"; shift 2;;
-    --ssh-bastion-port) SSH_BASTION_PORT="$2"; shift 2;;
-    --ssh-reverse-port) SSH_REVERSE_PORT="$2"; shift 2;;
-    --ssh-local-port) SSH_LOCAL_PORT="$2"; shift 2;;
-    --ssh-persistent) SSH_PERSISTENT="1"; shift;;
+    --wg-endpoint) WG_ENDPOINT="$2"; shift 2;;
+    --wg-hub-pubkey) WG_HUB_PUBKEY="$2"; shift 2;;
+    --wg-address) WG_ADDRESS="$2"; shift 2;;
+    --wg-ssh-user) WG_SSH_USER="$2"; shift 2;;
+    --wg-persistent) WG_PERSISTENT="1"; shift;;
     *) echo "arg sconosciuto: $1" >&2; exit 1;;
   esac
 done
@@ -89,41 +87,44 @@ if [[ -n "$DL_IP" ]]; then sed -i "s/^datalogger_ip:.*/datalogger_ip: \"$DL_IP\"
 # OTA config (delimitatore | perche' URL/base64 contengono /)
 if [[ -n "$UPD_URL" ]]; then sed -i "s|^update_base_url:.*|update_base_url: \"$UPD_URL\"|" "$CFG"; fi
 if [[ -n "$UPD_KEY" ]]; then sed -i "s|^update_public_key:.*|update_public_key: \"$UPD_KEY\"|" "$CFG"; fi
-# Reverse SSH tunnel verso il TUO bastion (nessun servizio terzo). Genera la chiave,
-# scrive la config e stampa la PUBBLICA da autorizzare sul bastion. Opzionale.
-TUNNEL_PUBKEY=""
-if [[ -n "$SSH_BASTION" ]]; then
-  [[ -n "$SSH_REVERSE_PORT" ]] || { echo "--ssh-bastion richiede --ssh-reverse-port" >&2; exit 1; }
-  echo "==> reverse SSH tunnel (bastion $SSH_BASTION:$SSH_BASTION_PORT, porta remota $SSH_REVERSE_PORT)"
-  apt-get install -y -qq autossh openssh-client
-  KEY="$CFG_DIR/tunnel_key"
-  [[ -f "$KEY" ]] || ssh-keygen -t ed25519 -f "$KEY" -N "" -C "experanto-edge@${CODE:-pi}" -q
-  chown "$SVC_USER":"$SVC_USER" "$KEY" "$KEY.pub"; chmod 600 "$KEY"
-  sed -i "s|^ssh_bastion_host:.*|ssh_bastion_host: \"$SSH_BASTION\"|" "$CFG"
-  sed -i "s|^ssh_bastion_user:.*|ssh_bastion_user: \"$SSH_BASTION_USER\"|" "$CFG"
-  sed -i "s|^ssh_bastion_port:.*|ssh_bastion_port: $SSH_BASTION_PORT|" "$CFG"
-  sed -i "s|^ssh_reverse_port:.*|ssh_reverse_port: $SSH_REVERSE_PORT|" "$CFG"
-  sed -i "s|^ssh_local_port:.*|ssh_local_port: $SSH_LOCAL_PORT|" "$CFG"
-  sed -i "s|^ssh_identity:.*|ssh_identity: \"$KEY\"|" "$CFG"
-  TUNNEL_PUBKEY="$(cat "$KEY.pub")"
-  if [[ -n "$SSH_PERSISTENT" ]]; then
-    echo "==> tunnel persistente (systemd, sempre su — per il bring-up)"
-    cat >/etc/systemd/system/experanto-edge-tunnel.service <<EOF
-[Unit]
-Description=Experanto Edge reverse SSH tunnel (persistent)
-After=network-online.target
-Wants=network-online.target
-[Service]
-User=$SVC_USER
-Environment=AUTOSSH_GATETIME=0
-ExecStart=/usr/bin/autossh -M 0 -N -T -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$STATE_DIR/known_hosts_bastion -o IdentitiesOnly=yes -i $KEY -R $SSH_REVERSE_PORT:localhost:$SSH_LOCAL_PORT -p $SSH_BASTION_PORT $SSH_BASTION_USER@$SSH_BASTION
-Restart=always
-RestartSec=10
-[Install]
-WantedBy=multi-user.target
+# WireGuard verso il TUO hub (nessun servizio terzo). Genera keypair, scrive la config e
+# stampa la PUBBLICA del Pi da registrare come peer sull'hub. Opzionale.
+WG_PUBKEY=""
+if [[ -n "$WG_ENDPOINT" ]]; then
+  [[ -n "$WG_ADDRESS" && -n "$WG_HUB_PUBKEY" ]] || { echo "--wg-endpoint richiede --wg-address e --wg-hub-pubkey" >&2; exit 1; }
+  echo "==> WireGuard (hub $WG_ENDPOINT, IP overlay $WG_ADDRESS)"
+  apt-get install -y -qq wireguard-tools
+  WG_IF="wg-experanto"; WG_CONF="/etc/wireguard/$WG_IF.conf"
+  install -d -m 700 /etc/wireguard
+  if [[ ! -f "$WG_CONF" ]]; then
+    WG_PRIV="$(wg genkey)"
+    ( umask 077; cat > "$WG_CONF" <<WGEOF
+[Interface]
+PrivateKey = $WG_PRIV
+Address = $WG_ADDRESS
+
+[Peer]
+PublicKey = $WG_HUB_PUBKEY
+Endpoint = $WG_ENDPOINT
+AllowedIPs = 10.8.0.0/24
+PersistentKeepalive = 25
+WGEOF
+    )
+  fi
+  chmod 600 "$WG_CONF"
+  WG_PUBKEY="$(awk -F' = ' '/^PrivateKey/{print $2}' "$WG_CONF" | wg pubkey)"
+  sed -i "s|^wg_interface:.*|wg_interface: \"$WG_IF\"|" "$CFG"
+  sed -i "s|^wg_address:.*|wg_address: \"$WG_ADDRESS\"|" "$CFG"
+  if [[ -n "$WG_SSH_USER" ]]; then sed -i "s|^wg_ssh_user:.*|wg_ssh_user: \"$WG_SSH_USER\"|" "$CFG"; fi
+  # sudoers: l'agente (non-root) puo' alzare/abbassare SOLO questa interfaccia WireGuard
+  cat >/etc/sudoers.d/experanto-edge-wg <<EOF
+$SVC_USER ALL=(root) NOPASSWD: /usr/bin/wg-quick up $WG_IF, /usr/bin/wg-quick down $WG_IF
 EOF
-    systemctl daemon-reload
-    systemctl enable --now experanto-edge-tunnel.service || true   # ritenta finche' la pubkey non e' sul bastion
+  chmod 440 /etc/sudoers.d/experanto-edge-wg
+  visudo -cf /etc/sudoers.d/experanto-edge-wg >/dev/null
+  if [[ -n "$WG_PERSISTENT" ]]; then
+    echo "==> WireGuard persistente (wg-quick@$WG_IF sempre su — per il bring-up)"
+    systemctl enable --now "wg-quick@$WG_IF" || true   # sale quando il peer e' registrato sull'hub
   fi
 fi
 chown "$SVC_USER":"$SVC_USER" "$CFG"; chmod 640 "$CFG"
@@ -141,12 +142,11 @@ EOF
 systemctl daemon-reload
 systemctl enable --now experanto-edge.service
 
-if [[ -n "$TUNNEL_PUBKEY" ]]; then
+if [[ -n "$WG_PUBKEY" ]]; then
   echo
-  echo "==> AZIONE sul bastion $SSH_BASTION: autorizza questa chiave pubblica"
-  echo "    per l'utente '$SSH_BASTION_USER' (~/.ssh/authorized_keys). Hardening in BASTION.md."
-  echo
-  echo "$TUNNEL_PUBKEY"
+  echo "==> AZIONE sull'hub WireGuard: registra questo Pi come peer (vedi WG_HUB.md)"
+  echo "    PublicKey  = $WG_PUBKEY"
+  echo "    AllowedIPs = $WG_ADDRESS"
   echo
 fi
 echo "==> fatto. Stato:"; systemctl --no-pager status experanto-edge.service || true

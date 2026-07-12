@@ -37,14 +37,12 @@ update_public_key: ""           # base64 of the raw 32-byte Ed25519 public key (
 app_dir: "/opt/experanto-edge"
 ota_helper: "/opt/experanto-edge/ota-helper.sh"
 
-# --- remote SSH (reverse tunnel to a self-hosted bastion — no third-party) ---
-# The Pi has no inbound ports (often CGNAT). It keeps an OUTBOUND ssh -R to YOUR bastion,
-# exposing its :22 there on `ssh_reverse_port`. On `open_ssh` the agent brings the tunnel
-# up for `ssh_default_ttl` seconds, then tears it down. Only openssh (+autossh) + your VPS.
-ssh_bastion_host: ""             # your bastion/VPS hostname or IP (empty = SSH remoto disabilitato)
-ssh_bastion_port: 22
-ssh_bastion_user: "edge-tunnel"  # restricted tunnel account on the bastion
-ssh_reverse_port: 0              # UNIQUE bastion port forwarding to this Pi (assegnata per-device)
-ssh_local_port: 22               # local sshd port to expose
-ssh_identity: "/etc/experanto-edge/tunnel_key"   # private key used to auth to the bastion
-ssh_default_ttl: 900             # seconds the tunnel stays up per open_ssh
+# --- remote access (WireGuard to a self-hosted hub — no third-party) ---
+# The Pi has no inbound ports (often CGNAT). It joins YOUR WireGuard hub (one UDP port on
+# your VPS — coexists with nginx/sshd) as a peer with a fixed overlay IP; you SSH to that IP.
+# On `open_ssh` the agent brings the WG interface up for `ssh_default_ttl` s, then down.
+# Keys/endpoint/peer live in /etc/wireguard/<iface>.conf (scritto da install.sh).
+wg_interface: "wg-experanto"     # nome di /etc/wireguard/<iface>.conf (vuoto = SSH remoto disabilitato)
+wg_address: ""                   # IP overlay di questo Pi, es. 10.8.0.5/32 (assegnato per-device)
+wg_ssh_user: ""                  # utente di login mostrato nel comando di reach (opzionale)
+ssh_default_ttl: 900             # secondi di finestra del tunnel per open_ssh

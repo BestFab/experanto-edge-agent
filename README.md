@@ -52,9 +52,9 @@ Config lives at `/etc/experanto-edge/config.yaml` (see `config.example.yaml`).
 Issued from Experanto, delivered on the next cycle:
 `read_now`, `set_interval`, `rediscover`, `get_diag`, `restart`, `reboot`,
 `update_agent`, `update_system`, `open_ssh`, `close_ssh`.
-`open_ssh`/`close_ssh` bring an on-demand reverse-SSH tunnel (to your self-hosted bastion,
-no third party) up/down for remote SSH into a Pi behind NAT (see [SETUP.md](SETUP.md) §5 and
-[BASTION.md](BASTION.md)).
+`open_ssh`/`close_ssh` bring an on-demand WireGuard link (to your self-hosted hub, no third
+party) up/down for remote SSH into a Pi behind NAT (see [SETUP.md](SETUP.md) §5 and
+[WG_HUB.md](WG_HUB.md)).
 
 ## Extending to other buses
 

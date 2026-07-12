@@ -1,10 +1,9 @@
-"""On-demand remote SSH via reverse tunnel to a self-hosted bastion.
+"""On-demand remote access via WireGuard to a self-hosted hub.
 
-No real ssh/bastion: remote._spawn/_terminate are stubbed, so we assert the ssh -R command
-we build, the pidfile lifecycle, and that the agent tracks the SSH window in-process.
+No real WireGuard: remote._run (wg-quick) and remote._validate are stubbed, so we assert
+the wg-quick invocations, the reach we build, and that the agent tracks the SSH window.
 """
 import json
-import subprocess
 
 from experanto_edge import remote
 from experanto_edge.buffer import Buffer
@@ -42,28 +41,11 @@ class FakeTransport:
         return c
 
 
-class _Bytes:
-    def __init__(self, b):
-        self._b = b
-
-    def read(self, *a):
-        return self._b
-
-
-class FakeProc:
-    """alive=True → wait() raises TimeoutExpired (tunnel su); alive=False → exits with rc."""
-    def __init__(self, pid=777, alive=True, rc=255, stderr=b""):
-        self.pid = pid
-        self._alive = alive
-        self._rc = rc
-        self.returncode = None if alive else rc
-        self.stderr = _Bytes(stderr)
-
-    def wait(self, timeout=None):
-        if self._alive:
-            raise subprocess.TimeoutExpired(cmd="ssh", timeout=timeout)
-        self.returncode = self._rc
-        return self._rc
+class FakeCP:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
 
 
 def make_cfg(tmp_path, **kw):
@@ -73,117 +55,115 @@ def make_cfg(tmp_path, **kw):
     return cfg
 
 
-def bastion_cfg(tmp_path, **kw):
-    key = tmp_path / "id"
-    key.write_text("PRIVATE-KEY")
-    return make_cfg(tmp_path, ssh_bastion_host="vps.example.com", ssh_reverse_port=22016,
-                    ssh_bastion_user="edge-tunnel", ssh_identity=str(key), **kw)
+def wg_cfg(tmp_path, **kw):
+    return make_cfg(tmp_path, wg_interface="wg-experanto", wg_address="10.8.0.5/32",
+                    wg_ssh_user="fabri", **kw)
 
 
 def _ack(t, cfg):
     return [p[1] for p in t.published if p[0] == cfg.topic("up/ack")][0]
 
 
-def _stub(monkeypatch, proc=None):
-    monkeypatch.setattr(remote, "_spawn", lambda cmd: proc or FakeProc())
-    kills = []
-    monkeypatch.setattr(remote, "_terminate", lambda pid: kills.append(pid))
-    return kills
+def _ok_env(monkeypatch, run=None):
+    """wg-quick present + config valid; capture the wg-quick argv lists."""
+    monkeypatch.setattr(remote, "_validate", lambda cfg: "")
+    calls = []
+
+    def default_run(args, timeout=25):
+        calls.append(args)
+        return FakeCP(0)
+
+    monkeypatch.setattr(remote, "_run", run or default_run)
+    return calls
 
 
-# --- _validate / _tunnel_cmd -------------------------------------------------
+# --- _validate ---------------------------------------------------------------
 
-def test_validate_missing_bastion(tmp_path):
-    assert "bastion" in remote._validate(make_cfg(tmp_path))
-
-
-def test_validate_missing_reverse_port(tmp_path):
-    key = tmp_path / "id"; key.write_text("k")
-    cfg = make_cfg(tmp_path, ssh_bastion_host="h", ssh_identity=str(key))
-    assert "reverse_port" in remote._validate(cfg)
+def test_validate_no_wgquick(tmp_path, monkeypatch):
+    monkeypatch.setattr(remote.shutil, "which", lambda x: None)
+    assert "wg-quick" in remote._validate(wg_cfg(tmp_path))
 
 
-def test_validate_missing_key(tmp_path):
-    cfg = make_cfg(tmp_path, ssh_bastion_host="h", ssh_reverse_port=1, ssh_identity="/no/such/key")
-    assert "chiave" in remote._validate(cfg)
+def test_validate_no_conf(tmp_path, monkeypatch):
+    monkeypatch.setattr(remote.shutil, "which", lambda x: "/usr/bin/wg-quick")
+    monkeypatch.setattr(remote.os.path, "exists", lambda p: False)
+    assert "assente" in remote._validate(wg_cfg(tmp_path))
 
 
-def test_tunnel_cmd_builds_reverse_forward(tmp_path):
-    cmd = remote._tunnel_cmd(bastion_cfg(tmp_path))
-    assert "-R" in cmd and "22016:localhost:22" in cmd
-    assert "edge-tunnel@vps.example.com" in cmd
-    assert "-N" in cmd and "ExitOnForwardFailure=yes" in cmd
+def test_validate_no_address(tmp_path, monkeypatch):
+    monkeypatch.setattr(remote.shutil, "which", lambda x: "/usr/bin/wg-quick")
+    monkeypatch.setattr(remote.os.path, "exists", lambda p: True)
+    assert "wg_address" in remote._validate(make_cfg(tmp_path))
 
 
 # --- up / down ---------------------------------------------------------------
 
-def test_up_success_writes_pid_and_reach(tmp_path, monkeypatch):
-    _stub(monkeypatch, FakeProc(pid=555, alive=True))
-    cfg = bastion_cfg(tmp_path)
-    ok, info = remote.up(cfg, 900)
+def test_up_brings_iface_and_returns_reach(tmp_path, monkeypatch):
+    calls = _ok_env(monkeypatch)
+    ok, info = remote.up(wg_cfg(tmp_path), 900)
     assert ok is True
-    assert info["port"] == 22016 and "22016" in info["reach"]
-    assert remote._read_pid(cfg) == 555
+    assert info["address"] == "10.8.0.5" and info["reach"] == "ssh fabri@10.8.0.5"
+    assert any(a[:3] == ["sudo", "-n", "wg-quick"] and a[3] == "up" for a in calls)
 
 
-def test_up_fails_if_tunnel_exits_immediately(tmp_path, monkeypatch):
-    _stub(monkeypatch, FakeProc(alive=False, rc=255, stderr=b"Permission denied (publickey)"))
-    ok, why = remote.up(bastion_cfg(tmp_path), 900)
-    assert ok is False and "255" in why and "Permission denied" in why
+def test_up_fails_when_wgquick_up_errors(tmp_path, monkeypatch):
+    def run(args, timeout=25):
+        return FakeCP(0) if args[3] == "down" else FakeCP(1, stderr="Address already in use")
+    _ok_env(monkeypatch, run=run)
+    ok, why = remote.up(wg_cfg(tmp_path), 900)
+    assert ok is False and "Address already in use" in why
 
 
-def test_up_validation_error_does_not_spawn(tmp_path, monkeypatch):
-    spawned = []
-    monkeypatch.setattr(remote, "_spawn", lambda cmd: spawned.append(cmd))
-    ok, why = remote.up(make_cfg(tmp_path), 900)
-    assert ok is False and not spawned
+def test_up_validation_error_does_not_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(remote, "_validate", lambda cfg: "wg_address non configurato")
+    ran = []
+    monkeypatch.setattr(remote, "_run", lambda *a, **k: ran.append(a))
+    ok, why = remote.up(wg_cfg(tmp_path), 900)
+    assert ok is False and not ran
 
 
-def test_down_terminates_and_clears_pid(tmp_path, monkeypatch):
-    cfg = bastion_cfg(tmp_path)
-    remote._write_pid(cfg, 999)
-    kills = []
-    monkeypatch.setattr(remote, "_terminate", lambda pid: kills.append(pid))
-    ok, _ = remote.down(cfg)
-    assert ok and kills == [999] and remote._read_pid(cfg) is None
+def test_down_calls_wgquick_down(tmp_path, monkeypatch):
+    calls = _ok_env(monkeypatch)
+    remote.down(wg_cfg(tmp_path))
+    assert any(a[3] == "down" for a in calls)
 
 
 # --- Agent integration -------------------------------------------------------
 
 def test_open_ssh_sets_window_and_acks_reach(tmp_path, monkeypatch):
-    _stub(monkeypatch)
-    cfg = bastion_cfg(tmp_path)
+    _ok_env(monkeypatch)
+    cfg = wg_cfg(tmp_path)
     t = FakeTransport(cmd={"command_id": "c1", "cmd": "open_ssh", "args": {"ttl": 600}})
     Agent(cfg, FakeReader(), t, Buffer(cfg.buffer_path)).run_cycle()
     assert cfg.ssh_open_until > 0
     ack = _ack(t, cfg)
     assert ack["ok"] is True
     d = json.loads(ack["detail"])
-    assert d["port"] == 22016 and d["until"] == cfg.ssh_open_until and d["bastion"] == "vps.example.com"
+    assert d["address"] == "10.8.0.5" and d["reach"] == "ssh fabri@10.8.0.5" and d["until"] == cfg.ssh_open_until
 
 
 def test_close_ssh_clears_window(tmp_path, monkeypatch):
-    kills = _stub(monkeypatch)
-    cfg = bastion_cfg(tmp_path)
+    calls = _ok_env(monkeypatch)
+    cfg = wg_cfg(tmp_path)
     cfg.ssh_open_until = 9999999999
-    remote._write_pid(cfg, 321)
     t = FakeTransport(cmd={"command_id": "c3", "cmd": "close_ssh", "args": {}})
     Agent(cfg, FakeReader(), t, Buffer(cfg.buffer_path)).run_cycle()
-    assert cfg.ssh_open_until == 0 and 321 in kills
+    assert cfg.ssh_open_until == 0 and any(a[3] == "down" for a in calls)
 
 
 def test_expired_window_auto_closes(tmp_path, monkeypatch):
-    kills = _stub(monkeypatch)
-    cfg = bastion_cfg(tmp_path)
-    cfg.ssh_open_until = 1               # nel passato
-    remote._write_pid(cfg, 42)
+    calls = _ok_env(monkeypatch)
+    cfg = wg_cfg(tmp_path)
+    cfg.ssh_open_until = 1
     Agent(cfg, FakeReader(), FakeTransport(), Buffer(cfg.buffer_path)).run_cycle()
-    assert cfg.ssh_open_until == 0 and 42 in kills
+    assert cfg.ssh_open_until == 0 and any(a[3] == "down" for a in calls)
 
 
 def test_open_ssh_failure_leaves_window_closed(tmp_path, monkeypatch):
-    _stub(monkeypatch, FakeProc(alive=False, rc=255, stderr=b"boom"))
-    cfg = bastion_cfg(tmp_path)
+    def run(args, timeout=25):
+        return FakeCP(0) if args[3] == "down" else FakeCP(1, stderr="boom")
+    _ok_env(monkeypatch, run=run)
+    cfg = wg_cfg(tmp_path)
     t = FakeTransport(cmd={"command_id": "c9", "cmd": "open_ssh", "args": {}})
     Agent(cfg, FakeReader(), t, Buffer(cfg.buffer_path)).run_cycle()
     assert cfg.ssh_open_until == 0
@@ -191,9 +171,9 @@ def test_open_ssh_failure_leaves_window_closed(tmp_path, monkeypatch):
 
 
 def test_status_reports_ssh_open_until(tmp_path, monkeypatch):
-    _stub(monkeypatch)
-    cfg = bastion_cfg(tmp_path)
-    cfg.ssh_open_until = 4102444800      # anno 2100: l'enforcement non lo chiude
+    _ok_env(monkeypatch)
+    cfg = wg_cfg(tmp_path)
+    cfg.ssh_open_until = 4102444800
     t = FakeTransport()
     Agent(cfg, FakeReader(), t, Buffer(cfg.buffer_path)).run_cycle()
     status = [p[1] for p in t.published if p[0] == cfg.topic("up/status")][0]

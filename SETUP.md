@@ -106,8 +106,8 @@ Il file è **`/etc/experanto-edge/config.yaml`** (owner `experanto-edge`, permes
 | `datalogger_ip`, `datalogger_port` | auto, `80` | Solar-Log locale |
 | `interval` | `300` | secondi tra un ciclo e l'altro |
 | `buffer_path`, `buffer_max_rows` | `/var/lib/experanto-edge/buffer.db`, `5000` | store-and-forward |
-| `ssh_bastion_host`, `ssh_bastion_user`, `ssh_reverse_port`, `ssh_identity` | vuoti/default | SSH remoto (reverse tunnel) |
-| `ssh_default_ttl` | `900` | durata finestra SSH (s) |
+| `wg_interface`, `wg_address`, `wg_ssh_user` | default/vuoti | accesso remoto (WireGuard) |
+| `ssh_default_ttl` | `900` | durata finestra tunnel (s) |
 | `update_base_url`, `update_public_key` | vuoti | OTA firmato |
 
 Per modificare e applicare:
@@ -119,34 +119,28 @@ sudo systemctl restart experanto-edge
 
 ---
 
-## 5. SSH remoto (reverse tunnel, on-demand o persistente)
+## 5. Accesso remoto (WireGuard, on-demand o persistente)
 
-Il Pi è dietro NAT/CGNAT (niente porte in ingresso): tiene un tunnel SSH **in uscita** verso
-il TUO bastion (**nessun servizio terzo**) ed espone lì la propria :22. Setup del bastion in
-**[BASTION.md](BASTION.md)**.
+Il Pi è dietro NAT/CGNAT (niente porte in ingresso): si unisce al TUO **hub WireGuard**
+(**nessun servizio terzo**, una porta UDP che coesiste con nginx/sshd) con un IP overlay fisso;
+lo raggiungi via SSH diretto a quell'IP. Setup dell'hub in **[WG_HUB.md](WG_HUB.md)**.
 
-**All'installazione:** `--ssh-bastion vps.tuo.it --ssh-reverse-port 22016` genera una chiave sul
-Pi e stampa la **pubblica** da autorizzare sul bastion (utente `edge-tunnel`). Aggiungi
-`--ssh-persistent` per tenere il tunnel **sempre su** (consigliato per il bring-up / quando il
-broker non c'è ancora).
+**All'installazione:** `--wg-endpoint <hub>:51820 --wg-hub-pubkey <KEY> --wg-address 10.8.0.5/32`
+genera la keypair, scrive `/etc/wireguard/wg-experanto.conf` e stampa la **pubblica** del Pi da
+registrare come peer sull'hub. Aggiungi `--wg-persistent` per tenere il link **sempre su**
+(consigliato per il bring-up / quando il broker non c'è ancora).
 
-**On-demand** (default, broker attivo): il tunnel è giù; sale sul comando **Apri SSH** dalla
-dashboard per `ssh_default_ttl` s (default 900), poi si richiude da solo (o con **Chiudi SSH**).
+**On-demand** (default, broker attivo): l'interfaccia è giù; sale sul comando **Apri SSH** dalla
+dashboard per `ssh_default_ttl` s (default 900), poi si richiude da sola (o con **Chiudi SSH**).
 
-**Raggiungere il Pi** (dal tuo laptop, col tuo account sul bastion):
+**Raggiungere il Pi** (dall'hub o da un tuo peer WG):
 ```bash
-ssh -J <tuo_admin>@<bastion> -p <reverse_port> <utente_pi>@127.0.0.1
+ssh <utente_pi>@10.8.0.5
 ```
 
-**Abilitarlo dopo l'installazione** (se non fatto all'install):
-```bash
-sudo apt-get install -y autossh
-sudo -u experanto-edge ssh-keygen -t ed25519 -f /etc/experanto-edge/tunnel_key -N ""
-# autorizza /etc/experanto-edge/tunnel_key.pub sul bastion (utente edge-tunnel) — vedi BASTION.md
-sudo sed -i 's|^ssh_bastion_host:.*|ssh_bastion_host: "vps.tuo.it"|' /etc/experanto-edge/config.yaml
-sudo sed -i 's|^ssh_reverse_port:.*|ssh_reverse_port: 22016|' /etc/experanto-edge/config.yaml
-sudo systemctl restart experanto-edge
-```
+**Abilitarlo dopo l'installazione** (se non fatto all'install): rilancia
+`install.sh … --wg-endpoint … --wg-hub-pubkey … --wg-address 10.8.0.5/32`, poi registra la
+pubkey stampata come peer sull'hub (vedi WG_HUB.md).
 
 ---
 

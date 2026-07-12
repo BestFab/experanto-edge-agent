@@ -54,17 +54,15 @@ class Config:
     app_dir: str = "/opt/experanto-edge"          # holds current -> releases/{version}
     ota_helper: str = "/opt/experanto-edge/ota-helper.sh"
 
-    # --- remote SSH (reverse tunnel to a self-hosted bastion — no third-party) ---
-    # A Pi at a customer site has no inbound ports (often CGNAT). It keeps an OUTBOUND
-    # SSH connection to YOUR bastion and exposes its own :22 there with a remote-forward
-    # (ssh -R). On `open_ssh` the agent brings the tunnel up for `ssh_default_ttl` seconds,
-    # then tears it down (enforced each cycle). Only openssh (+autossh if present) + your VPS.
-    ssh_bastion_host: str = ""           # your bastion/VPS hostname or IP
-    ssh_bastion_port: int = 22           # sshd port on the bastion
-    ssh_bastion_user: str = "edge-tunnel"  # restricted tunnel account on the bastion
-    ssh_reverse_port: int = 0            # UNIQUE bastion port forwarding to this Pi (0 = unset)
-    ssh_local_port: int = 22             # local sshd port to expose
-    ssh_identity: str = "/etc/experanto-edge/tunnel_key"  # private key to auth to the bastion
+    # --- remote access (WireGuard to a self-hosted hub — no third-party) ---
+    # A Pi at a customer site has no inbound ports (often CGNAT). It joins YOUR WireGuard hub
+    # (one UDP port on your VPS — coexists with nginx/sshd, even UDP/443) as a peer with a
+    # fixed overlay IP; you SSH straight to that IP. On `open_ssh` the agent brings the WG
+    # interface up for `ssh_default_ttl` seconds, then tears it down (enforced each cycle).
+    # Keys/endpoint/peer live in /etc/wireguard/<iface>.conf; here we only need iface + IP.
+    wg_interface: str = "wg-experanto"   # name of /etc/wireguard/<iface>.conf
+    wg_address: str = ""                 # this Pi's overlay IP, e.g. 10.8.0.5/32 (per device)
+    wg_ssh_user: str = ""                # login user shown in the reach hint (optional)
     ssh_default_ttl: int = 900           # seconds the tunnel stays up per open_ssh
 
     # --- persisted runtime state ---

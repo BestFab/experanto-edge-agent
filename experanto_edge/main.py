@@ -77,7 +77,7 @@ class Agent:
         return update.reboot(self.cfg)
 
     def open_ssh(self, args: dict):
-        """Bring the reverse-SSH tunnel up for a bounded window so we can SSH in.
+        """Bring the WireGuard tunnel up for a bounded window so we can SSH in.
         `args` may carry {ttl} to override the default window."""
         ttl = max(60, min(int(args.get("ttl") or self.cfg.ssh_default_ttl), 86400))
         ok, info = remote.up(self.cfg, ttl)
@@ -85,10 +85,10 @@ class Agent:
             return False, info  # info is the failure reason (str)
         self.cfg.ssh_open_until = int(time.time()) + ttl
         self.cfg.save()
-        log.info("tunnel SSH aperto per %ss (%s)", ttl, info.get("reach"))
+        log.info("tunnel WireGuard aperto per %ss (%s)", ttl, info.get("reach"))
         return True, json.dumps(
-            {"reach": info.get("reach"), "bastion": info.get("bastion"),
-             "port": info.get("port"), "until": self.cfg.ssh_open_until}
+            {"reach": info.get("reach"), "address": info.get("address"),
+             "until": self.cfg.ssh_open_until}
         )
 
     def close_ssh(self, args: dict):

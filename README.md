@@ -33,6 +33,10 @@ Get the **code** and **secret** from the Experanto SPA → *Add remote datalogge
 `--datalogger-ip` is omitted the agent tries to auto-discover the Solar-Log on the LAN.
 On the Solar-Log, set the local API access to **Open** so getjp answers.
 
+For the full production setup on a dedicated Pi — the systemd service that **starts on
+boot and restarts itself**, configuration reference, remote SSH, updates and
+troubleshooting — see **[SETUP.md](SETUP.md)**.
+
 ## Run manually
 
 ```bash
@@ -46,8 +50,10 @@ Config lives at `/etc/experanto-edge/config.yaml` (see `config.example.yaml`).
 ## Remote commands
 
 Issued from Experanto, delivered on the next cycle:
-`read_now`, `set_interval`, `rediscover`, `get_diag`, `restart`, `update_agent`,
-`update_system`, `reboot`. (OTA updates land in phase E5.)
+`read_now`, `set_interval`, `rediscover`, `get_diag`, `restart`, `reboot`,
+`update_agent`, `update_system`, `open_ssh`, `close_ssh`.
+`open_ssh`/`close_ssh` bring an on-demand Tailscale tunnel up/down for remote SSH into a
+Pi behind NAT (see [SETUP.md](SETUP.md) §5).
 
 ## Extending to other buses
 

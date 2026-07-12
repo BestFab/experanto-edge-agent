@@ -54,15 +54,17 @@ class Config:
     app_dir: str = "/opt/experanto-edge"          # holds current -> releases/{version}
     ota_helper: str = "/opt/experanto-edge/ota-helper.sh"
 
-    # --- remote SSH (Tailscale, on-demand) ---
-    # A Pi at a customer site has no inbound ports (often CGNAT), so it can't be
-    # reached directly. On the `open_ssh` command the agent brings a Tailscale tunnel
-    # UP for `ssh_default_ttl` seconds, then tears it down (enforced each cycle).
-    # Tailscale runs in operator mode (install.sh: `tailscale set --operator`), so no
-    # sudo is needed. Works against Tailscale SaaS or a self-hosted Headscale.
-    tailscale_authkey: str = ""          # reusable+ephemeral+tagged auth key (deploy secret)
-    tailscale_login_server: str = ""     # Headscale control URL; empty = Tailscale SaaS
-    tailscale_hostname: str = ""         # node name in the tailnet; empty = device_code
+    # --- remote SSH (reverse tunnel to a self-hosted bastion — no third-party) ---
+    # A Pi at a customer site has no inbound ports (often CGNAT). It keeps an OUTBOUND
+    # SSH connection to YOUR bastion and exposes its own :22 there with a remote-forward
+    # (ssh -R). On `open_ssh` the agent brings the tunnel up for `ssh_default_ttl` seconds,
+    # then tears it down (enforced each cycle). Only openssh (+autossh if present) + your VPS.
+    ssh_bastion_host: str = ""           # your bastion/VPS hostname or IP
+    ssh_bastion_port: int = 22           # sshd port on the bastion
+    ssh_bastion_user: str = "edge-tunnel"  # restricted tunnel account on the bastion
+    ssh_reverse_port: int = 0            # UNIQUE bastion port forwarding to this Pi (0 = unset)
+    ssh_local_port: int = 22             # local sshd port to expose
+    ssh_identity: str = "/etc/experanto-edge/tunnel_key"  # private key to auth to the bastion
     ssh_default_ttl: int = 900           # seconds the tunnel stays up per open_ssh
 
     # --- persisted runtime state ---

@@ -106,7 +106,7 @@ Il file è **`/etc/experanto-edge/config.yaml`** (owner `experanto-edge`, permes
 | `datalogger_ip`, `datalogger_port` | auto, `80` | Solar-Log locale |
 | `interval` | `300` | secondi tra un ciclo e l'altro |
 | `buffer_path`, `buffer_max_rows` | `/var/lib/experanto-edge/buffer.db`, `5000` | store-and-forward |
-| `tailscale_authkey`, `tailscale_login_server`, `tailscale_hostname` | vuoti | SSH remoto |
+| `ssh_bastion_host`, `ssh_bastion_user`, `ssh_reverse_port`, `ssh_identity` | vuoti/default | SSH remoto (reverse tunnel) |
 | `ssh_default_ttl` | `900` | durata finestra SSH (s) |
 | `update_base_url`, `update_public_key` | vuoti | OTA firmato |
 
@@ -119,24 +119,32 @@ sudo systemctl restart experanto-edge
 
 ---
 
-## 5. SSH remoto (Tailscale, on-demand)
+## 5. SSH remoto (reverse tunnel, on-demand o persistente)
 
-Il Pi è dietro NAT/CGNAT (niente porte in ingresso): l'SSH si apre **su richiesta** via Tailscale.
+Il Pi è dietro NAT/CGNAT (niente porte in ingresso): tiene un tunnel SSH **in uscita** verso
+il TUO bastion (**nessun servizio terzo**) ed espone lì la propria :22. Setup del bastion in
+**[BASTION.md](BASTION.md)**.
 
-**Se hai installato con `--tailscale-authkey`:**
-1. Dashboard → *Impostazioni → Datalogger remoti* → **Apri SSH**.
-2. Entro ~1 minuto la card mostra l'indirizzo overlay `100.x` + il countdown.
-3. `ssh <utente>@100.x` — usa un utente reale del Pi (o `root`) secondo l'ACL Tailscale.
-   `experanto-edge` è `nologin`: non serve per la shell.
-4. Il tunnel si chiude da solo alla scadenza (default 900 s) o con **Chiudi SSH**.
+**All'installazione:** `--ssh-bastion vps.tuo.it --ssh-reverse-port 22016` genera una chiave sul
+Pi e stampa la **pubblica** da autorizzare sul bastion (utente `edge-tunnel`). Aggiungi
+`--ssh-persistent` per tenere il tunnel **sempre su** (consigliato per il bring-up / quando il
+broker non c'è ancora).
 
-**Abilitarlo dopo l'installazione** (se non l'hai fatto all'install):
+**On-demand** (default, broker attivo): il tunnel è giù; sale sul comando **Apri SSH** dalla
+dashboard per `ssh_default_ttl` s (default 900), poi si richiude da solo (o con **Chiudi SSH**).
 
+**Raggiungere il Pi** (dal tuo laptop, col tuo account sul bastion):
 ```bash
-curl -fsSL https://tailscale.com/install.sh | sudo sh
-sudo systemctl enable --now tailscaled
-sudo tailscale set --operator=experanto-edge      # l'agente usa tailscale senza sudo
-sudo sed -i 's|^tailscale_authkey:.*|tailscale_authkey: "tskey-…"|' /etc/experanto-edge/config.yaml
+ssh -J <tuo_admin>@<bastion> -p <reverse_port> <utente_pi>@127.0.0.1
+```
+
+**Abilitarlo dopo l'installazione** (se non fatto all'install):
+```bash
+sudo apt-get install -y autossh
+sudo -u experanto-edge ssh-keygen -t ed25519 -f /etc/experanto-edge/tunnel_key -N ""
+# autorizza /etc/experanto-edge/tunnel_key.pub sul bastion (utente edge-tunnel) — vedi BASTION.md
+sudo sed -i 's|^ssh_bastion_host:.*|ssh_bastion_host: "vps.tuo.it"|' /etc/experanto-edge/config.yaml
+sudo sed -i 's|^ssh_reverse_port:.*|ssh_reverse_port: 22016|' /etc/experanto-edge/config.yaml
 sudo systemctl restart experanto-edge
 ```
 

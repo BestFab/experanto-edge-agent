@@ -187,6 +187,10 @@ sudo systemctl daemon-reload
 - **Datalogger non trovato / lettura fallita** → metti il getjp del Solar-Log su **"Open"**,
   verifica `datalogger_ip`/`datalogger_port` (Solar-Log = porta **80**). Ricerca manuale:
   `sudo -u experanto-edge EXPERANTO_EDGE_CONFIG=/etc/experanto-edge/config.yaml /opt/experanto-edge/current/venv/bin/experanto-edge --discover-datalogger`
+- **Non sai che datalogger c'è** (device ethernet ignoto, es. Pi a distanza) → `python3 tools/recon.py`
+  sul Pi (solo stdlib, gira via SSH senza venv): scopre gli host, fa il fingerprint (HTTP/API,
+  Solar-Log getjp, Fronius, SMA, Modbus+SunSpec, SNMP) e suggerisce quale reader usare.
+  `python3 tools/recon.py --json` per incollarne l'output e decidere insieme.
 - **Broker non raggiungibile** → normale se `mqtt.experanto.it` non è ancora deployato; i dati
   vanno nel buffer e partono dopo. Controlla `broker_host`/`broker_port`/`tls`.
 - **Salute del pacchetto su questo Pi/arch**:

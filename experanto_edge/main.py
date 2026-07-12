@@ -8,13 +8,14 @@ from stale telemetry, exactly like any other plant.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import signal
 import sys
 import threading
 import time
 
-from . import __version__, enroll, update
+from . import __version__, enroll, remote, update
 from .buffer import Buffer
 from .commands import CommandDispatcher
 from .config import Config
@@ -75,6 +76,38 @@ class Agent:
     def reboot_host(self):
         return update.reboot(self.cfg)
 
+    def open_ssh(self, args: dict):
+        """Bring a Tailscale tunnel up for a bounded window so we can SSH in.
+        `args` may carry {ttl, authkey} to override config — an authkey in the command
+        lets the server deliver a fresh ephemeral key per open instead of a stored one."""
+        ttl = max(60, min(int(args.get("ttl") or self.cfg.ssh_default_ttl), 86400))
+        authkey = args.get("authkey") or self.cfg.tailscale_authkey
+        ok, info = remote.up(self.cfg, authkey, ttl)
+        if not ok:
+            return False, info  # info is the failure reason (str)
+        self.cfg.ssh_open_until = int(time.time()) + ttl
+        self.cfg.save()
+        log.info("tunnel SSH aperto per %ss (ip=%s)", ttl, info.get("ip") or "?")
+        return True, json.dumps(
+            {"ts_ip": info.get("ip"), "ts_host": info.get("host"),
+             "until": self.cfg.ssh_open_until}
+        )
+
+    def close_ssh(self, args: dict):
+        remote.down(self.cfg)
+        self.cfg.ssh_open_until = 0
+        self.cfg.save()
+        return True, "tunnel SSH chiuso"
+
+    def _enforce_ssh_window(self) -> None:
+        """Tear the tunnel down once its window elapses (on-demand, never always-on).
+        Persisted in config so it survives a restart; granularity is one cycle."""
+        if self.cfg.ssh_open_until and time.time() > self.cfg.ssh_open_until:
+            remote.down(self.cfg)
+            self.cfg.ssh_open_until = 0
+            self.cfg.save()
+            log.info("finestra SSH scaduta — tunnel chiuso")
+
     def diagnostics(self) -> dict:
         return {
             "agent_version": __version__,
@@ -106,6 +139,7 @@ class Agent:
                 "device_code": self.cfg.device_code,
                 "station_id": self.cfg.station_id,
                 "local_ips": enroll.local_ips(),
+                "ssh_open_until": self.cfg.ssh_open_until,
                 "at": int(time.time()),
                 "error": error,
             }
@@ -125,6 +159,7 @@ class Agent:
 
     # --- cycle ---
     def run_cycle(self) -> None:
+        self._enforce_ssh_window()
         error = ""
         telemetry = None
         try:

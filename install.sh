@@ -2,7 +2,10 @@
 # Experanto Edge agent installer (Raspberry Pi / Debian).
 # Usage:
 #   sudo ./install.sh --code EXP-XXXX-XXXX --secret <SECRET> [--station <UUID>] \
-#                     [--broker mqtt.experanto.it] [--datalogger-ip 192.168.1.50]
+#                     [--broker mqtt.experanto.it] [--datalogger-ip 192.168.1.50] \
+#                     [--tailscale-authkey tskey-…] [--tailscale-login-server URL]
+# With a Tailscale auth key the installer enables on-demand remote SSH (operator mode,
+# no sudo): the agent brings a tunnel up only on the `open_ssh` command, then down.
 #
 # Layout (rollback-friendly, phase E5):
 #   /opt/experanto-edge/releases/<name>/venv        one venv per release
@@ -20,6 +23,7 @@ SVC_USER=experanto-edge
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 CODE=""; SECRET=""; STATION=""; BROKER=""; DL_IP=""; UPD_URL=""; UPD_KEY=""
+TS_KEY=""; TS_LOGIN=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --code) CODE="$2"; shift 2;;
@@ -29,6 +33,8 @@ while [[ $# -gt 0 ]]; do
     --datalogger-ip) DL_IP="$2"; shift 2;;
     --update-base-url) UPD_URL="$2"; shift 2;;
     --update-pubkey) UPD_KEY="$2"; shift 2;;
+    --tailscale-authkey) TS_KEY="$2"; shift 2;;
+    --tailscale-login-server) TS_LOGIN="$2"; shift 2;;
     *) echo "arg sconosciuto: $1" >&2; exit 1;;
   esac
 done
@@ -76,6 +82,16 @@ if [[ -n "$DL_IP" ]]; then sed -i "s/^datalogger_ip:.*/datalogger_ip: \"$DL_IP\"
 # OTA config (delimitatore | perche' URL/base64 contengono /)
 if [[ -n "$UPD_URL" ]]; then sed -i "s|^update_base_url:.*|update_base_url: \"$UPD_URL\"|" "$CFG"; fi
 if [[ -n "$UPD_KEY" ]]; then sed -i "s|^update_public_key:.*|update_public_key: \"$UPD_KEY\"|" "$CFG"; fi
+# Tailscale per l'accesso SSH remoto on-demand (solo se fornita una authkey)
+if [[ -n "$TS_KEY" ]]; then
+  echo "==> Tailscale (SSH remoto on-demand, operator mode per $SVC_USER)"
+  command -v tailscale >/dev/null 2>&1 || curl -fsSL https://tailscale.com/install.sh | sh
+  systemctl enable --now tailscaled 2>/dev/null || true
+  # operator: l'utente di servizio (non-root) puo' fare `tailscale up/down/ip` senza sudo
+  tailscale set --operator="$SVC_USER" 2>/dev/null || true
+  sed -i "s|^tailscale_authkey:.*|tailscale_authkey: \"$TS_KEY\"|" "$CFG"
+  if [[ -n "$TS_LOGIN" ]]; then sed -i "s|^tailscale_login_server:.*|tailscale_login_server: \"$TS_LOGIN\"|" "$CFG"; fi
+fi
 chown "$SVC_USER":"$SVC_USER" "$CFG"; chmod 640 "$CFG"
 
 echo "==> servizio systemd"

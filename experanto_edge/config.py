@@ -54,8 +54,20 @@ class Config:
     app_dir: str = "/opt/experanto-edge"          # holds current -> releases/{version}
     ota_helper: str = "/opt/experanto-edge/ota-helper.sh"
 
+    # --- remote SSH (Tailscale, on-demand) ---
+    # A Pi at a customer site has no inbound ports (often CGNAT), so it can't be
+    # reached directly. On the `open_ssh` command the agent brings a Tailscale tunnel
+    # UP for `ssh_default_ttl` seconds, then tears it down (enforced each cycle).
+    # Tailscale runs in operator mode (install.sh: `tailscale set --operator`), so no
+    # sudo is needed. Works against Tailscale SaaS or a self-hosted Headscale.
+    tailscale_authkey: str = ""          # reusable+ephemeral+tagged auth key (deploy secret)
+    tailscale_login_server: str = ""     # Headscale control URL; empty = Tailscale SaaS
+    tailscale_hostname: str = ""         # node name in the tailnet; empty = device_code
+    ssh_default_ttl: int = 900           # seconds the tunnel stays up per open_ssh
+
     # --- persisted runtime state ---
     last_command_id: str = ""
+    ssh_open_until: int = 0              # epoch until which the SSH tunnel stays up (0 = closed)
 
     _path: str = field(default=DEFAULT_CONFIG_PATH, repr=False)
 

@@ -24,6 +24,8 @@ class CommandDispatcher:
             "reboot": self._reboot,
             "update_agent": self._update_agent,
             "update_system": self._update_system,
+            "open_ssh": self._open_ssh,
+            "close_ssh": self._close_ssh,
         }
 
     def handle(self, cmd: Dict[str, Any]) -> Tuple[bool, str]:
@@ -69,3 +71,9 @@ class CommandDispatcher:
     def _update_system(self, args):
         from . import update
         return update.update_system(self.agent.cfg, args.get("mode", "security"))
+
+    def _open_ssh(self, args):
+        return self.agent.open_ssh(args)
+
+    def _close_ssh(self, args):
+        return self.agent.close_ssh(args)

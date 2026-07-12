@@ -1,6 +1,6 @@
 [Unit]
 Description=Experanto Edge agent
-Documentation=https://github.com/Esperanto/experanto-edge-agent
+Documentation=https://github.com/BestFab/experanto-edge-agent
 After=network-online.target
 Wants=network-online.target
 

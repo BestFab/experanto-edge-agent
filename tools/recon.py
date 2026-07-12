@@ -89,7 +89,9 @@ def _http_raw(ip, port, tls, path="/", method="GET", body=None, headers=None, ti
         ctx.verify_mode = ssl.CERT_NONE
         sock = ctx.wrap_socket(raw, server_hostname=ip)
     try:
-        req = (f"{method} {path} HTTP/1.1\r\nHost: {ip}\r\nConnection: close\r\n"
+        # HTTP/1.0: evita il transfer-encoding chunked (che inquinerebbe il body grezzo
+        # con i marcatori di dimensione, non facendo il de-chunking).
+        req = (f"{method} {path} HTTP/1.0\r\nHost: {ip}\r\nConnection: close\r\n"
                f"User-Agent: experanto-recon\r\nAccept: */*\r\n")
         if headers:
             for k, v in headers.items():
@@ -136,7 +138,7 @@ def http_probe(ip, port, tls):
     title = ""
     m = re.search(rb"<title[^>]*>(.*?)</title>", body, re.I | re.S)
     if m:
-        title = m.group(1).decode("utf-8", "replace").strip()[:120]
+        title = re.sub(r"\s+", " ", m.group(1).decode("utf-8", "replace")).strip()[:120]
     ctype = hdrs.get("content-type", "")
     head = body[:400].lstrip().lower()
     is_json = "json" in ctype or body[:200].lstrip()[:1] in (b"{", b"[")

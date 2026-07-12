@@ -25,12 +25,13 @@ SVC_USER=experanto-edge
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Self-bootstrap: se install.sh viene eseguito da solo (curl … | sudo bash), il pacchetto
-# non è accanto → scaricalo da GitHub e ri-esegui da lì.
+# non è accanto → scarica l'ULTIMA RELEASE (fallback su main) e ri-esegui da lì.
 if [[ ! -f "$SRC_DIR/pyproject.toml" ]]; then
-  echo "==> bootstrap: scarico l'agente da github.com/BestFab/experanto-edge-agent"
+  echo "==> bootstrap: scarico l'ultima release dell'agente"
   command -v tar >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq tar; }
   TMP="$(mktemp -d)"
-  curl -fsSL "https://github.com/BestFab/experanto-edge-agent/archive/refs/heads/main.tar.gz" | tar -xz -C "$TMP" --strip-components=1
+  TARBALL="$(curl -fsSL https://api.github.com/repos/BestFab/experanto-edge-agent/releases/latest 2>/dev/null | grep -oE '"tarball_url"[^,]+' | cut -d'"' -f4)"
+  curl -fsSL "${TARBALL:-https://github.com/BestFab/experanto-edge-agent/archive/refs/heads/main.tar.gz}" | tar -xz -C "$TMP" --strip-components=1
   exec bash "$TMP/install.sh" "$@"
 fi
 

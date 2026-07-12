@@ -13,6 +13,19 @@ per arrivare allo sshd del Pi. Ogni Pi ha una `reverse_port` **unica** (22016, 2
 Pi (:22) ──ssh -R 22016:localhost:22──▶ bastion(127.0.0.1:22016) ◀── tu:  ssh -J te@bastion -p 22016 …
 ```
 
+## 0. Porta del bastion (egress dai siti clienti)
+La rete del cliente deve lasciar **uscire** il Pi verso il bastion. Affidabilità dell'egress:
+**443** (quasi sempre aperto) > **22** (SSH, spesso aperto) > porte alte (rischiose, es. 2222).
+Metti lo sshd del bastion su **443** se libera, altrimenti **22**.
+
+Se il bastion è co-locato su un host che serve già **HTTPS (nginx su 443)** e ha lo **sshd host
+su 22** — entrambe occupate — tre vie:
+- **sslh su 443**: un multiplexer su 443 distingue HTTPS→nginx e SSH→sshd/bastion. Egress
+  perfetto e tieni il container, ma sposti nginx su una porta interna → **tocca il web di prod**.
+- **sshd dell'host su 22**: crea `edge-tunnel` **sull'host** (niente container) e usa la 22 già
+  aperta. Zero rischio; egress su 22 di norma ok (meno garantito di 443).
+- **bastion dedicato**: una VM/IP separati con sshd su **443**. Il più pulito per la produzione.
+
 ## 1. Utente tunnel dedicato (una volta sola)
 ```bash
 sudo useradd -m -s /usr/sbin/nologin edge-tunnel

@@ -26,12 +26,16 @@ class SolarlogGetjpReader(Reader):
     reader_type = "solarlog_getjp"
 
     def __init__(self, ip: str, port: int = 80, timeout: float = 10.0):
-        if not ip:
-            raise ReaderError("datalogger_ip non configurato")
+        # NON sollevare qui: un datalogger assente/non ancora configurato non deve far
+        # crashare l'agente al boot. L'errore emerge in read() -> lo cattura run_cycle,
+        # che riporta lo stato "errore" e ritenta al ciclo dopo (niente crash-loop).
+        self.ip = ip
         self.base_url = f"http://{ip}:{port}"
         self.timeout = timeout
 
     def _getjp(self, query: Dict[str, Any]) -> Any:
+        if not self.ip:
+            raise ReaderError("datalogger_ip non configurato (datalogger assente o non ancora impostato)")
         try:
             r = requests.post(f"{self.base_url}/getjp", json=query, timeout=self.timeout)
             r.raise_for_status()

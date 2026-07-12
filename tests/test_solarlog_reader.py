@@ -57,6 +57,9 @@ def test_read_error_wrapped(monkeypatch):
         SolarlogGetjpReader("192.168.1.50").read()
 
 
-def test_requires_ip():
+def test_no_ip_does_not_crash_at_init_but_read_raises():
+    # Datalogger assente: NON crasha al costruttore (l'agente deve partire lo stesso),
+    # ma read() solleva ReaderError -> run_cycle lo gestisce (niente crash-loop).
+    r = SolarlogGetjpReader("")            # non solleva
     with pytest.raises(ReaderError):
-        SolarlogGetjpReader("")
+        r.read()

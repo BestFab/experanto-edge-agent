@@ -24,6 +24,16 @@ STATE_DIR=/var/lib/experanto-edge
 SVC_USER=experanto-edge
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Self-bootstrap: se install.sh viene eseguito da solo (curl … | sudo bash), il pacchetto
+# non è accanto → scaricalo da GitHub e ri-esegui da lì.
+if [[ ! -f "$SRC_DIR/pyproject.toml" ]]; then
+  echo "==> bootstrap: scarico l'agente da github.com/BestFab/experanto-edge-agent"
+  command -v tar >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq tar; }
+  TMP="$(mktemp -d)"
+  curl -fsSL "https://github.com/BestFab/experanto-edge-agent/archive/refs/heads/main.tar.gz" | tar -xz -C "$TMP" --strip-components=1
+  exec bash "$TMP/install.sh" "$@"
+fi
+
 CODE=""; SECRET=""; STATION=""; BROKER=""; DL_IP=""; UPD_URL=""; UPD_KEY=""
 WG_ENDPOINT=""; WG_HUB_PUBKEY=""; WG_ADDRESS=""; WG_SSH_USER=""; WG_PERSISTENT=""
 while [[ $# -gt 0 ]]; do

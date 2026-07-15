@@ -30,6 +30,7 @@ READERS = {
     "solarlog_getjp": lambda cfg: SolarlogGetjpReader(
         cfg.datalogger_ip, cfg.datalogger_port,
         user_password=cfg.datalogger_user_password,
+        collect_detail=cfg.collect_inverter_detail,
     ),
 }
 

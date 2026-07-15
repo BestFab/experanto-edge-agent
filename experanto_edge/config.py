@@ -39,6 +39,12 @@ class Config:
     # frequenza) che l'API "open" non espone. Vuota = solo dati open (nessuna regressione).
     # Raccolta dal wizard/console per install; per datalogger senza password resta vuota.
     datalogger_user_password: str = ""
+    # Raccolta del dettaglio per-inverter (getjp 143: temperatura/Udc/Idc/Pdc/Uac/
+    # frequenza). OFF di default: il 143 scarica l'intera giornata per inverter e il
+    # mapping colonne richiede i blocchi 860/870, che sul firmware attuale rispondono
+    # 503 (dato inutilizzabile lato server). Abilitare a `true` solo quando 860/870
+    # tornano disponibili e il mapping server e' pronto.
+    collect_inverter_detail: bool = False
 
     # --- behaviour ---
     interval: int = 300                  # seconds between cycles (= worker poll rate)

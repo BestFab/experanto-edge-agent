@@ -90,6 +90,61 @@ def test_608_is_best_effort(monkeypatch):
     assert out["getjp"]["608"] is None
 
 
+def test_detail_skipped_when_collect_detail_false(monkeypatch):
+    # collect_detail=False (default dell'AGENTE via config): il 143 NON viene mai
+    # interrogato (evita ~1MB/ciclo sul datalogger), ma i blocchi open restano.
+    def fake_post(url, json=None, timeout=None, headers=None):
+        if isinstance(json, dict) and "143" in json:
+            raise AssertionError("143 non deve essere interrogato con collect_detail=False")
+        r = _open_post(json)
+        return r if r is not None else FakeResp(DEV)
+
+    monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.requests.post", fake_post)
+    out = SolarlogGetjpReader("192.168.1.50", spacing=0, user_password="x",
+                              collect_detail=False).read()
+    assert "143" not in out["getjp"]
+    assert out["getjp"]["740"] == {"740": {"0": "1 / SN-A", "1": "2 / SN-B"}}
+    assert out["getjp"]["877"] == {"877": [["2026-07", 42000]]}
+    assert out["getjp"]["878"] == {"878": [["2026", 500000]]}
+
+
+def test_real_inverter_indices_excludes_meter_and_empty():
+    from experanto_edge.readers.solarlog_getjp import _real_inverter_indices
+    serials = {"740": {"0": "1 / SN-A", "1": "2 / SN-B",
+                       "9": "192.168.1.60 / 70124278", "10": "Err"}}
+    # dal 740: solo inverter reali (contatore=IP a sx e slot "Err" esclusi).
+    assert _real_inverter_indices(serials, None) == ["0", "1"]
+    # senza 740: ripiega sugli slot 782 con potenza non-zero.
+    assert set(_real_inverter_indices({}, {"0": "5000", "1": "0", "2": "3000"})) == {"0", "2"}
+
+
+def test_detail_only_queries_real_inverters(monkeypatch):
+    # Con 30+ slot nel 782 e 740 che marca 2 inverter reali, il 143 va interrogato
+    # SOLO su quei 2 (non su tutti gli slot -> niente scarico dell'intera giornata x30).
+    queried = []
+    flat782 = {str(i): "0" for i in range(30)}
+    flat782["0"] = "5000"; flat782["1"] = "6000"; flat782["9"] = "999999"
+    serials740 = {"740": {"0": "1 / SN-A", "1": "2 / SN-B",
+                          "9": "192.168.1.60 / 70124278"}}
+
+    def fake_post(url, json=None, timeout=None, headers=None):
+        if json == {"782": None}:
+            return FakeResp({"782": flat782})
+        if json == {"740": None}:
+            return FakeResp(serials740)
+        if isinstance(json, dict) and "143" in json:
+            dev = list(json["143"]["1"]["100"].keys())[0]
+            queried.append(dev)
+            return FakeResp(DETAIL_0 if dev == "0" else DETAIL_1)
+        if json == {"870": None}:
+            return FakeResp(CHANNELS)
+        return _open_post(json)
+
+    monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.requests.post", fake_post)
+    SolarlogGetjpReader("192.168.1.50", spacing=0, collect_detail=True).read()
+    assert sorted(queried) == ["0", "1"]   # solo i 2 inverter reali, non 30 slot
+
+
 def test_discover_returns_782(monkeypatch):
     monkeypatch.setattr(
         "experanto_edge.readers.solarlog_getjp.requests.post",

@@ -58,12 +58,42 @@ def _detail_query(dev: str) -> Dict[str, Any]:
     return {"143": {"1": {"100": {str(dev): None}}}}
 
 
+def _real_inverter_indices(serials: Any, dev_map: Any) -> List[str]:
+    """Indici degli inverter REALI su cui interrogare il 143.
+
+    Preferisce il blocco seriali 740 (``{idx: "<n> / <serial>"}``): reale se la
+    parte a sinistra e' un numero (NON un IP = contatore) e la destra non e' "Err"
+    (slot vuoto). Senza 740, ripiega sugli slot 782 con potenza non-zero. Evita di
+    interrogare il 143 su TUTTI i 30+ slot del datalogger (scaricherebbe l'intera
+    giornata per ognuno)."""
+    block = serials.get("740") if isinstance(serials, dict) else None
+    out: List[str] = []
+    if isinstance(block, dict):
+        for idx, val in block.items():
+            if not isinstance(val, str) or "/" not in val:
+                continue
+            lhs, _, rhs = val.partition("/")
+            lhs, rhs = lhs.strip(), rhs.strip()
+            if rhs and rhs.lower() != "err" and "." not in lhs:
+                out.append(str(idx))
+        if out:
+            return out
+    if isinstance(dev_map, dict):
+        for idx, val in dev_map.items():
+            try:
+                if float(val if not isinstance(val, dict) else val.get("101", 0)) > 0:
+                    out.append(str(idx))
+            except (TypeError, ValueError):
+                continue
+    return out
+
+
 class SolarlogGetjpReader(Reader):
     reader_type = "solarlog_getjp"
 
     def __init__(self, ip: str, port: int = 80, timeout: float = 10.0,
                  spacing: float = 1.5, history_interval: float = 3600.0,
-                 user_password: str = ""):
+                 user_password: str = "", collect_detail: bool = True):
         # NON sollevare qui: un datalogger assente/non ancora configurato non deve far
         # crashare l'agente al boot. L'errore emerge in read() -> lo cattura run_cycle,
         # che riporta lo stato "errore" e ritenta al ciclo dopo (niente crash-loop).
@@ -78,6 +108,13 @@ class SolarlogGetjpReader(Reader):
         self._last_history = 0.0
         # Password UTENTE: se presente abilita il login e il dettaglio 143/870.
         self.user_password = user_password or ""
+        # Dettaglio per-inverter (143). La libreria lo abilita di default, ma
+        # l'AGENTE lo tiene OFF via config (`collect_inverter_detail: false`,
+        # default): il 143 scarica l'INTERA giornata per inverter (~100KB ciascuno)
+        # e il suo mapping colonne richiede i blocchi 860/870 che sul firmware
+        # attuale rispondono 503 -> lato server e' inutilizzabile. Non vale ~1MB/ciclo
+        # di carico sul datalogger LIVE finche' non e' mappabile.
+        self.collect_detail = bool(collect_detail)
         # Sessione HTTP loggata (cookie jar). None = non loggati / login non tentato.
         self._session: Optional[requests.Session] = None
         # Dizionario canali 870: statico, lo prendiamo una volta per sessione.
@@ -243,16 +280,19 @@ class SolarlogGetjpReader(Reader):
                 getjp["878"] = year
                 self._last_history = now
 
-        # Dettaglio per-inverter (temperatura/Udc/Idc/Pdc/Uac/frequenza). Lo si tenta col
-        # solo header CSRF: un datalogger SENZA password puo' gia' esporlo. Se e' negato e
-        # c'e' una password utente, _ensure_session fa login e i device riprovano con la
-        # sessione. Se non arriva nulla (ne' open ne' via login), backoff per non
-        # martellare 143 su ogni inverter a ogni ciclo. Nessuna regressione sul dato open.
-        if isinstance(devices, dict) and time.monotonic() >= self._detail_retry_after:
-            dev_map = devices.get("782")  # {idx: {...}}: gli indici sono le chiavi interne
-            if isinstance(dev_map, dict) and dev_map:
+        # Dettaglio per-inverter (temperatura/Udc/Idc/Pdc/Uac/frequenza). OFF di
+        # default (self.collect_detail): il 143 scarica l'intera giornata per inverter
+        # e senza 860/870 (503 sul firmware attuale) e' inutilizzabile lato server.
+        # Quando abilitato: si tenta col solo header CSRF (datalogger senza password lo
+        # espone gia'); se negato e c'e' una password utente, _ensure_session fa login.
+        # Interrogato SOLO sugli inverter reali (740), non su tutti i 30+ slot. Backoff
+        # se non arriva nulla. Nessuna regressione sul dato open.
+        if (self.collect_detail and isinstance(devices, dict)
+                and time.monotonic() >= self._detail_retry_after):
+            indices = _real_inverter_indices(serials, devices.get("782"))
+            if indices:
                 self._ensure_session()    # login solo se c'e' password (no-op altrimenti)
-                detail = self._read_detail(list(dev_map.keys()))
+                detail = self._read_detail(indices)
                 if detail:
                     getjp.update(detail)
                 else:

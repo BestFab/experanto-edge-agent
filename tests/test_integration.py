@@ -41,7 +41,7 @@ class CollectTransport:
 
 
 def test_getjp_to_telemetry_envelope(tmp_path, monkeypatch):
-    def fake_post(url, json=None, timeout=None):
+    def fake_post(url, json=None, timeout=None, headers=None):
         return FakeResp(AGG if json == {"801": {"170": None}} else DEV)
 
     monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.requests.post", fake_post)

@@ -27,7 +27,10 @@ log = logging.getLogger("experanto-edge")
 
 # reader_type -> factory. Future buses (modbus/rs485/can/...) register here (phase: handoff).
 READERS = {
-    "solarlog_getjp": lambda cfg: SolarlogGetjpReader(cfg.datalogger_ip, cfg.datalogger_port),
+    "solarlog_getjp": lambda cfg: SolarlogGetjpReader(
+        cfg.datalogger_ip, cfg.datalogger_port,
+        user_password=cfg.datalogger_user_password,
+    ),
 }
 
 

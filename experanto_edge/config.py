@@ -34,6 +34,11 @@ class Config:
     reader_type: str = "solarlog_getjp"
     datalogger_ip: str = ""
     datalogger_port: int = 80
+    # Password UTENTE del datalogger (livello "user"). Se impostata, l'agente fa login e
+    # legge anche il dettaglio per-inverter (143: temperatura, Udc/Idc/Pdc per stringa, Uac,
+    # frequenza) che l'API "open" non espone. Vuota = solo dati open (nessuna regressione).
+    # Raccolta dal wizard/console per install; per datalogger senza password resta vuota.
+    datalogger_user_password: str = ""
 
     # --- behaviour ---
     interval: int = 300                  # seconds between cycles (= worker poll rate)

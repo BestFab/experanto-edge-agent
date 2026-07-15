@@ -10,6 +10,7 @@ dependencies = [
     "requests>=2.25",
     "PyYAML>=5.4",
     "cryptography>=41",     # Ed25519 verification of signed OTA releases (E5)
+    "bcrypt>=4.0",          # login "user" al datalogger per il dettaglio per-inverter (143)
 ]
 
 [project.optional-dependencies]

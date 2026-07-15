@@ -191,8 +191,19 @@ class SolarlogGetjpReader(Reader):
             if isinstance(resp, dict):
                 node = resp.get("143", {}).get("1", {}).get("100", {}).get(str(idx))
             # node atteso: [[from, to, interval], [[time, [vals]], ...]]
-            if isinstance(node, list) and len(node) >= 2 and isinstance(node[1], list) and node[1]:
-                detail[str(idx)] = [node[0], [node[1][-1]]]  # header + sola ultima riga
+            rows = node[1] if (isinstance(node, list) and len(node) >= 2
+                               and isinstance(node[1], list)) else []
+            # Ultima riga con almeno un valore reale: di notte gli slot recenti sono tutti
+            # None (inverter spento). Forwardiamo l'ultimo campione con dati + il suo
+            # timestamp; e' il server a giudicarne la freschezza (header[1] = "to").
+            last = None
+            for row in reversed(rows):
+                vals = row[1] if isinstance(row, list) and len(row) >= 2 else None
+                if isinstance(vals, list) and any(v is not None for v in vals):
+                    last = row
+                    break
+            if last is not None:
+                detail[str(idx)] = [node[0], [last]]  # header + ultima riga con dati reali
         out: Dict[str, Any] = {}
         if detail:
             out["143"] = detail

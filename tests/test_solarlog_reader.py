@@ -199,6 +199,30 @@ def test_detail_via_csrf_without_login(monkeypatch):
     assert out["getjp"]["870"] == CHANNELS["870"]
 
 
+def test_detail_picks_last_row_with_data(monkeypatch):
+    # Di notte gli slot recenti sono tutti None: il reader deve forwardare l'ultima riga
+    # con dati reali (col timestamp), e saltare del tutto un inverter spento tutto il di'.
+    NIGHT = {"143": {"1": {"100": {"0": [[1000, 2000, 300],
+             [["06:50:00", [5738, 48]], ["23:50:00", [None, None]],
+              ["23:55:00", [None, None]]]]}}}}
+    OFF = {"143": {"1": {"100": {"1": [[1000, 2000, 300],
+           [["23:55:00", [None, None]]]]}}}}
+
+    def fake_post(url, json=None, timeout=None, headers=None):
+        if isinstance(json, dict) and "143" in json:
+            dev = list(json["143"]["1"]["100"].keys())[0]
+            return FakeResp(NIGHT if dev == "0" else OFF)
+        if json == {"870": None}:
+            return FakeResp(CHANNELS)
+        return _open_post(json)
+
+    monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.requests.post", fake_post)
+    out = SolarlogGetjpReader("192.168.1.50", spacing=0).read()
+    det = out["getjp"]["143"]
+    assert det["0"] == [[1000, 2000, 300], [["06:50:00", [5738, 48]]]]  # ultimo con dati
+    assert "1" not in det                                                # spento -> assente
+
+
 def test_detail_absent_when_login_fails(monkeypatch):
     class FailSession(FakeSession):
         def post(self, url, json=None, data=None, timeout=None, headers=None):

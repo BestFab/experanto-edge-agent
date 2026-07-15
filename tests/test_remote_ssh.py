@@ -56,8 +56,19 @@ def make_cfg(tmp_path, **kw):
 
 
 def wg_cfg(tmp_path, **kw):
+    # Config AGENT-MANAGED (l'agente possiede un'interfaccia on-demand): la usano i test
+    # che verificano up/down via wg-quick. NB il default REALE del prodotto e' external
+    # (overlay persistente): quei casi hanno i loro test dedicati (ext_cfg) piu' sotto.
+    kw.setdefault("wg_managed_externally", False)
     return make_cfg(tmp_path, wg_interface="wg-experanto", wg_address="10.8.0.5/32",
                     wg_ssh_user="fabri", **kw)
+
+
+def ext_cfg(tmp_path, **kw):
+    # Config con overlay PERSISTENTE / system-managed (wg-quick@iface): il default reale.
+    # L'agente NON deve toccare l'interfaccia.
+    return make_cfg(tmp_path, wg_interface="wg-experanto", wg_address="10.8.0.5/32",
+                    wg_ssh_user="fabri", wg_managed_externally=True, **kw)
 
 
 def _ack(t, cfg):
@@ -126,6 +137,37 @@ def test_down_calls_wgquick_down(tmp_path, monkeypatch):
     calls = _ok_env(monkeypatch)
     remote.down(wg_cfg(tmp_path))
     assert any(a[3] == "down" for a in calls)
+
+
+# --- overlay PERSISTENTE / system-managed (default): l'agente non tocca l'iface ---
+
+def test_external_up_is_noop_but_returns_reach(tmp_path, monkeypatch):
+    ran = []
+    monkeypatch.setattr(remote, "_run", lambda *a, **k: ran.append(a) or FakeCP(0))
+    ok, info = remote.up(ext_cfg(tmp_path), 900)
+    assert ok is True
+    assert info["managed"] == "external"
+    assert info["address"] == "10.8.0.5" and info["reach"] == "ssh fabri@10.8.0.5"
+    assert not ran                       # nessun wg-quick: l'interfaccia NON viene toccata
+
+
+def test_external_down_is_noop(tmp_path, monkeypatch):
+    ran = []
+    monkeypatch.setattr(remote, "_run", lambda *a, **k: ran.append(a) or FakeCP(0))
+    ok, _ = remote.down(ext_cfg(tmp_path))
+    assert ok is True and not ran        # la lifeline non viene MAI abbattuta dall'agente
+
+
+def test_external_expired_window_never_tears_down_lifeline(tmp_path, monkeypatch):
+    # IL BUG STORICO isolato: con overlay persistente, una finestra SSH scaduta NON deve
+    # lanciare `wg-quick down wg-experanto` (severerebbe il Pi). Deve solo azzerare lo stato.
+    ran = []
+    monkeypatch.setattr(remote, "_run", lambda *a, **k: ran.append(a) or FakeCP(0))
+    cfg = ext_cfg(tmp_path)
+    cfg.ssh_open_until = 1               # finestra scaduta
+    Agent(cfg, FakeReader(), FakeTransport(), Buffer(cfg.buffer_path)).run_cycle()
+    assert cfg.ssh_open_until == 0       # stato azzerato...
+    assert not ran                       # ...ma interfaccia MAI toccata (lifeline salva)
 
 
 # --- Agent integration -------------------------------------------------------

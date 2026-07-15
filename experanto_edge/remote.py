@@ -2,9 +2,15 @@
 
 The Pi has no inbound ports (often CGNAT). It joins YOUR WireGuard hub — a single UDP port
 on your VPS, which coexists with nginx/sshd on the same host (even UDP/443) — as a peer with
-a fixed overlay IP; you then SSH straight to that IP. On `open_ssh` the agent brings the WG
-interface up for a bounded window, then tears it down. Nothing external: only wireguard-tools
-and your own VPS.
+a fixed overlay IP; you then SSH straight to that IP.
+
+DUE MODI (indipendenti dall'agente-dati):
+- **overlay PERSISTENTE, system-managed** (DEFAULT, `wg_managed_externally=True`): l'interfaccia
+  la tiene su `wg-quick@<iface>` abilitato al boot — e' la LIFELINE del Pi. L'agente NON la
+  tocca: `up`/`down` sono no-op sull'interfaccia (up conferma solo la raggiungibilita').
+  Cosi' un deploy/refactor dell'agente non puo' MAI abbattere la connettivita'.
+- **on-demand, agent-managed** (`wg_managed_externally=False`): l'agente porta su l'interfaccia
+  a finestra su `open_ssh` e la abbatte allo scadere. Solo dove NON c'e' overlay persistente.
 
 `wg-quick` creates a network interface → needs root: routed via `sudo -n` (install.sh adds a
 scoped NOPASSWD rule for exactly `wg-quick up/down <iface>`). The keys/endpoint/peer live in
@@ -60,22 +66,48 @@ def _validate(cfg) -> str:
     return ""
 
 
+def _external(cfg) -> bool:
+    """True se l'interfaccia WG e' gestita dal SISTEMA (overlay persistente), non dall'agente.
+
+    Default True: l'agente NON tocca l'interfaccia (nessun wg-quick up/down) -> non puo'
+    abbattere la lifeline. False solo dove l'agente possiede un'interfaccia on-demand.
+    """
+    return bool(getattr(cfg, "wg_managed_externally", True))
+
+
 def up(cfg, ttl: int = 0) -> Tuple[bool, object]:
-    """Bring the WG interface up. Returns (True, {"reach","address","interface"}) or (False, reason)."""
+    """Porta su l'interfaccia WG, o conferma solo la raggiungibilita' se e' system-managed.
+
+    Ritorna (True, {"reach","address","interface","managed"}) oppure (False, motivo).
+    """
+    iface = _iface(cfg)
+    addr = getattr(cfg, "wg_address", "").split("/")[0].strip()
+    user = getattr(cfg, "wg_ssh_user", "") or "<utente_pi>"
+    if _external(cfg):
+        # Overlay persistente (es. wg-quick@iface abilitato al boot): gia' su, NON lo
+        # tocchiamo. open_ssh conferma solo dove/come raggiungere il Pi.
+        if not addr:
+            return False, "wg_address non configurato"
+        return True, {"reach": f"ssh {user}@{addr}", "address": addr,
+                      "interface": iface, "managed": "external"}
     err = _validate(cfg)
     if err:
         return False, err
-    iface = _iface(cfg)
     _wgquick("down", iface)                      # best-effort: evita l'errore "already exists"
     ok, detail = _wgquick("up", iface)
     if not ok:
         return False, f"wg-quick up fallito: {detail}"
-    addr = getattr(cfg, "wg_address", "").split("/")[0].strip()
-    user = getattr(cfg, "wg_ssh_user", "") or "<utente_pi>"
-    return True, {"reach": f"ssh {user}@{addr}", "address": addr, "interface": iface}
+    return True, {"reach": f"ssh {user}@{addr}", "address": addr,
+                  "interface": iface, "managed": "agent"}
 
 
 def down(cfg) -> Tuple[bool, str]:
-    """Tear the WG interface down (idempotente)."""
+    """Abbatte l'interfaccia WG (idempotente) — SOLO se l'agente la possiede.
+
+    Con overlay persistente (default `wg_managed_externally=True`) e' un NO-OP: la lifeline
+    del Pi non va MAI abbattuta dall'agente (la gestisce wg-quick@<iface> di sistema).
+    """
+    if _external(cfg):
+        return True, "overlay persistente (system-managed): interfaccia non toccata"
     _wgquick("down", _iface(cfg))
     return True, ""

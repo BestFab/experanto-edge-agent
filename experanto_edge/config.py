@@ -75,6 +75,14 @@ class Config:
     wg_address: str = ""                 # this Pi's overlay IP, e.g. 10.8.0.5/32 (per device)
     wg_ssh_user: str = ""                # login user shown in the reach hint (optional)
     ssh_default_ttl: int = 900           # seconds the tunnel stays up per open_ssh
+    # Chi possiede l'interfaccia WireGuard. True (DEFAULT) = l'overlay e' PERSISTENTE e
+    # gestito dal sistema (es. `wg-quick@<iface>` abilitato al boot): e' la LIFELINE del Pi
+    # e l'agente NON deve mai toccarla -> open_ssh/close_ssh diventano no-op sull'interfaccia
+    # (resta comunque su, il Pi resta raggiungibile). Cosi' agente-dati e connettivita'-WG
+    # sono INDIPENDENTI: un deploy dell'agente non puo' abbattere la lifeline.
+    # Mettere False SOLO su Pi dove l'agente possiede un'interfaccia on-demand (nessun
+    # overlay persistente): li' l'agente la porta su/giu' a finestra (comportamento storico).
+    wg_managed_externally: bool = True
 
     # --- persisted runtime state ---
     last_command_id: str = ""

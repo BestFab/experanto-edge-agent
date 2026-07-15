@@ -12,6 +12,9 @@ Solar-Log Base ──getjp (LAN)──▶  Raspberry Pi (this agent)  ──MQTT
                                         └──WireGuard (outbound)──▶  your hub  ◀── you: ssh 10.8.0.x
 ```
 
+> **How it works:** **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** explains the runtime cycle, messaging,
+> resilience, and the two WireGuard modes. Version history is in **[CHANGELOG.md](CHANGELOG.md)**.
+
 ## Highlights
 
 - **Thin relay.** Forwards the *raw* getjp responses; Experanto parses them server-side, so

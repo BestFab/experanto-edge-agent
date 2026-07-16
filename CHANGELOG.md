@@ -6,6 +6,27 @@ A `!` marks a **breaking change** (behaviour or config default changed).
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-07-16
+
+_Per-inverter detail rework: usable telemetry via 860 + 143 current-values._
+
+### Changed
+- **Per-inverter detail now forwards `860` + `143:101` (current values)** instead of `143:100`
+  (full-day curve) + `870`. The `860` "channel wall" turned out to be a request-format issue —
+  the bare `{"860": null}` makes the datalogger 500, but the **indexed** `{"860": {"<idx>": null}}`
+  returns 200 (503s were just rate-limiting). The reader now pages the `860` epochs, keeps the
+  current one (highest index = live config layout), and forwards its `channels.min` (per-device
+  `[type, channel]` map) so the server can label the `143` columns. `143:101` is the **current
+  values** row (~208 B/inverter vs ~88 KB for the full-day curve), so the payload stays tiny.
+- `860` is static, so it is fetched on the history cadence and **cached**, but included in every
+  snapshot (the server is stateless and needs it to map each cycle).
+
+### Notes
+- The column→field mapping lives entirely server-side (`impianti/solarlog_local.py`); the reader
+  stays a thin relay. Validated end-to-end against a real Growatt MAX-125KTL3-XLV plant.
+- `collect_inverter_detail` remains **off by default**; enabling it adds one `143` request per real
+  inverter per cycle (plus the hourly `860` refresh), so roll out per-datalogger and watch for 503s.
+
 ## [0.3.0] — 2026-07-16
 
 _Solar-Log data enrichment + WireGuard safety._

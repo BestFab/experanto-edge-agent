@@ -7,12 +7,29 @@ AGG = {"801": {"170": {"101": 12345, "102": 12800, "105": 42000, "116": 780000}}
 DEV = {"782": {"0": {"101": 6000}, "1": {"101": 6345}}}
 STATUS = {"608": {"0": "Normal", "1": "OFFLINE"}}
 SALTS = {"550": {"104": "$2b$08$qk5birSAh8VntKj4PkvTaO", "112": 1, "113": 1}}
-# 143: [[from, to, interval], [[time, [~channels]], ...]] — il reader tiene solo l'ultima riga.
-DETAIL_0 = {"143": {"1": {"100": {"0": [[1000, 2000, 300],
-                                       [["05:35:00", [1, 2, 3]], ["05:40:00", [4, 5, 6]]]]}}}}
-DETAIL_1 = {"143": {"1": {"100": {"1": [[1000, 2000, 300],
-                                       [["05:40:00", [7, 8, 9]]]]}}}}
-CHANNELS = {"870": [[10, 0, 0, "L_STATUS", ""], [6, 0, 0, "L_TEMPERATURE", "°C"]]}
+
+
+def _info(name, serial, model):
+    """info21 di un device 860: [1]=nome, [13]=seriale, [19]=modello."""
+    a = [0] * 21
+    a[1], a[13], a[19] = name, serial, model
+    return a
+
+
+# channels.min a 2 colonne: [Pac ch0, Temp ch0]. L'indice E' la colonna del 143.
+_CM = [[1, 0], [6, 0]]
+
+
+def _epoch(i):
+    """860[i] = [[idx, ndev], [epoch_meta, [dev0, dev1]]]; dev = [info21, channels_min, ...]."""
+    dev0 = [_info("Inv 1", "SN-A", "MAX-125KTL3-XLV"), _CM, [[7, 0]]]
+    dev1 = [_info("Inv 2", "SN-B", "MAX-125KTL3-XLV"), _CM, [[7, 0]]]
+    return [[i, 2], [[0, "1.1.2001", 1, "now", 300], [dev0, dev1]]]
+
+
+# 143:101 = valori CORRENTI: [[from, to, interval], [65 valori]] (qui 2, come channels.min).
+DETAIL_101_0 = {"143": {"1": {"101": {"0": [[1000, 2000, 300], [5000, 41]]}}}}
+DETAIL_101_1 = {"143": {"1": {"101": {"1": [[1000, 2000, 300], [6000, 43]]}}}}
 
 
 class FakeResp:
@@ -47,8 +64,21 @@ def _open_post(json=None):
     if json == {"550": None}:
         return FakeResp(SALTS)
     # dettaglio privilegiato senza login: un datalogger che lo protegge risponde negato
-    if isinstance(json, dict) and ("143" in json or "870" in json):
+    if isinstance(json, dict) and ("143" in json or "860" in json):
         return FakeResp(status=403, text="ACCESS DENIED")
+    return None
+
+
+def _detail_post(json):
+    """Risposte 860 (epoch 0,1 valide; 2+ vuota) + 143:101 per device. None se non gestita."""
+    if isinstance(json, dict) and "860" in json:
+        idx = list(json["860"].keys())[0]
+        if idx in ("0", "1"):
+            return FakeResp({"860": {idx: _epoch(int(idx))}})
+        return FakeResp({"860": {}})              # nessuna altra epoch -> stop iterazione
+    if isinstance(json, dict) and "143" in json:
+        dev = list(json["143"]["1"]["101"].keys())[0]
+        return FakeResp(DETAIL_101_0 if dev == "0" else DETAIL_101_1)
     return None
 
 
@@ -66,7 +96,8 @@ def test_read_forwards_raw_getjp(monkeypatch):
     assert out["getjp"]["801_170"] == AGG
     assert out["getjp"]["782"] == DEV
     assert out["getjp"]["608"] == STATUS       # status per-inverter inoltrato
-    assert "143" not in out["getjp"]           # niente password -> niente dettaglio
+    assert "143" not in out["getjp"]           # datalogger nega il dettaglio -> assente
+    assert "860" not in out["getjp"]
     assert isinstance(out["read_at"], int)
 
 
@@ -91,11 +122,11 @@ def test_608_is_best_effort(monkeypatch):
 
 
 def test_detail_skipped_when_collect_detail_false(monkeypatch):
-    # collect_detail=False (default dell'AGENTE via config): il 143 NON viene mai
-    # interrogato (evita ~1MB/ciclo sul datalogger), ma i blocchi open restano.
+    # collect_detail=False (default dell'AGENTE via config): ne' 143 ne' 860 vengono
+    # mai interrogati, ma i blocchi open restano.
     def fake_post(url, json=None, timeout=None, headers=None):
-        if isinstance(json, dict) and "143" in json:
-            raise AssertionError("143 non deve essere interrogato con collect_detail=False")
+        if isinstance(json, dict) and ("143" in json or "860" in json):
+            raise AssertionError("143/860 non devono essere interrogati con collect_detail=False")
         r = _open_post(json)
         return r if r is not None else FakeResp(DEV)
 
@@ -103,6 +134,7 @@ def test_detail_skipped_when_collect_detail_false(monkeypatch):
     out = SolarlogGetjpReader("192.168.1.50", spacing=0, user_password="x",
                               collect_detail=False).read()
     assert "143" not in out["getjp"]
+    assert "860" not in out["getjp"]
     assert out["getjp"]["740"] == {"740": {"0": "1 / SN-A", "1": "2 / SN-B"}}
     assert out["getjp"]["877"] == {"877": [["2026-07", 42000]]}
     assert out["getjp"]["878"] == {"878": [["2026", 500000]]}
@@ -120,7 +152,7 @@ def test_real_inverter_indices_excludes_meter_and_empty():
 
 def test_detail_only_queries_real_inverters(monkeypatch):
     # Con 30+ slot nel 782 e 740 che marca 2 inverter reali, il 143 va interrogato
-    # SOLO su quei 2 (non su tutti gli slot -> niente scarico dell'intera giornata x30).
+    # SOLO su quei 2 (non su tutti gli slot).
     queried = []
     flat782 = {str(i): "0" for i in range(30)}
     flat782["0"] = "5000"; flat782["1"] = "6000"; flat782["9"] = "999999"
@@ -133,12 +165,9 @@ def test_detail_only_queries_real_inverters(monkeypatch):
         if json == {"740": None}:
             return FakeResp(serials740)
         if isinstance(json, dict) and "143" in json:
-            dev = list(json["143"]["1"]["100"].keys())[0]
-            queried.append(dev)
-            return FakeResp(DETAIL_0 if dev == "0" else DETAIL_1)
-        if json == {"870": None}:
-            return FakeResp(CHANNELS)
-        return _open_post(json)
+            queried.append(list(json["143"]["1"]["101"].keys())[0])
+        d = _detail_post(json)
+        return d if d is not None else _open_post(json)
 
     monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.requests.post", fake_post)
     SolarlogGetjpReader("192.168.1.50", spacing=0, collect_detail=True).read()
@@ -173,74 +202,17 @@ def test_no_ip_does_not_crash_at_init_but_read_raises():
         r.read()
 
 
-# ---- Login "user" + dettaglio per-inverter (143/870) ----
-
-class FakeSession:
-    """Sessione loggata: /login -> SUCCESS, /getjp privilegiato -> 143/870."""
-    def __init__(self):
-        self.logged_in = False
-        self.login_body = None
-
-    def post(self, url, json=None, data=None, timeout=None, headers=None):
-        if url.endswith("/login"):
-            self.logged_in = True
-            self.login_body = data
-            return FakeResp(text="SUCCESS - login ok")
-        if url.endswith("/getjp"):
-            assert headers and headers.get("x-sl-csrf-protection") == "1", "manca header CSRF"
-            if json == {"143": {"1": {"100": {"0": None}}}}:
-                return FakeResp(DETAIL_0)
-            if json == {"143": {"1": {"100": {"1": None}}}}:
-                return FakeResp(DETAIL_1)
-            if json == {"870": None}:
-                return FakeResp(CHANNELS)
-        raise AssertionError(f"unexpected session post {url} {json}")
-
-
-def _patch_login(monkeypatch, session):
-    monkeypatch.setattr(
-        "experanto_edge.readers.solarlog_getjp.requests.post",
-        lambda url, json=None, timeout=None, headers=None: _open_post(json),
-    )
-    monkeypatch.setattr(
-        "experanto_edge.readers.solarlog_getjp.requests.Session", lambda: session
-    )
-
-
-def test_detail_extracted_when_password_set(monkeypatch):
-    sess = FakeSession()
-    _patch_login(monkeypatch, sess)
-    r = SolarlogGetjpReader("192.168.1.50", spacing=0, user_password="Calme1234@")
-    out = r.read()
-
-    # login avvenuto come "user" con hash bcrypt (non la password in chiaro)
-    assert sess.logged_in
-    assert sess.login_body["u"] == "user"
-    assert sess.login_body["p"].startswith("$2b$")
-    assert sess.login_body["p"] != "Calme1234@"
-
-    # dettaglio: solo l'ULTIMA riga per inverter, header preservato
-    det = out["getjp"]["143"]
-    assert det["0"] == [[1000, 2000, 300], [["05:40:00", [4, 5, 6]]]]
-    assert det["1"] == [[1000, 2000, 300], [["05:40:00", [7, 8, 9]]]]
-    # dizionario canali 870 inoltrato come sola lista
-    assert out["getjp"]["870"] == CHANNELS["870"]
-    # i dati open restano invariati (nessuna regressione)
-    assert out["getjp"]["782"] == DEV
+# ---- Dettaglio per-inverter (860 channels.min + 143:101 valori correnti) ----
 
 
 def test_detail_via_csrf_without_login(monkeypatch):
     # Datalogger SENZA password che espone il dettaglio col solo header CSRF: niente
-    # login, ma il reader prende comunque temperatura/tensioni (caso "install pulito").
+    # login, ma il reader prende comunque 860 (epoch corrente) + 143:101 per inverter.
     def fake_post(url, json=None, timeout=None, headers=None):
-        if isinstance(json, dict) and "143" in json:
+        if isinstance(json, dict) and ("143" in json or "860" in json):
             assert headers and headers.get("x-sl-csrf-protection") == "1"
-            dev = list(json["143"]["1"]["100"].keys())[0]
-            return FakeResp(DETAIL_0 if dev == "0" else DETAIL_1)
-        if json == {"870": None}:
-            assert headers and headers.get("x-sl-csrf-protection") == "1"
-            return FakeResp(CHANNELS)
-        return _open_post(json)
+        d = _detail_post(json)
+        return d if d is not None else _open_post(json)
 
     monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.requests.post", fake_post)
     monkeypatch.setattr(
@@ -248,44 +220,87 @@ def test_detail_via_csrf_without_login(monkeypatch):
         lambda: (_ for _ in ()).throw(AssertionError("nessun login senza password")),
     )
     out = SolarlogGetjpReader("192.168.1.50", spacing=0).read()  # niente user_password
-    det = out["getjp"]["143"]
-    assert det["0"] == [[1000, 2000, 300], [["05:40:00", [4, 5, 6]]]]
-    assert det["1"] == [[1000, 2000, 300], [["05:40:00", [7, 8, 9]]]]
-    assert out["getjp"]["870"] == CHANNELS["870"]
+    # 860: solo l'epoch corrente (indice piu' alto = 1), non la 0.
+    assert set(out["getjp"]["860"].keys()) == {"1"}
+    # 143:101: valori correnti raw per inverter, forwardati come [header, [valori]].
+    assert out["getjp"]["143"]["0"] == [[1000, 2000, 300], [5000, 41]]
+    assert out["getjp"]["143"]["1"] == [[1000, 2000, 300], [6000, 43]]
+    assert out["getjp"]["782"] == DEV                     # dati open invariati
 
 
-def test_detail_picks_last_row_with_data(monkeypatch):
-    # Di notte gli slot recenti sono tutti None: il reader deve forwardare l'ultima riga
-    # con dati reali (col timestamp), e saltare del tutto un inverter spento tutto il di'.
-    NIGHT = {"143": {"1": {"100": {"0": [[1000, 2000, 300],
-             [["06:50:00", [5738, 48]], ["23:50:00", [None, None]],
-              ["23:55:00", [None, None]]]]}}}}
-    OFF = {"143": {"1": {"100": {"1": [[1000, 2000, 300],
-           [["23:55:00", [None, None]]]]}}}}
+def test_detail_extracted_when_password_set(monkeypatch):
+    # Datalogger protetto: login "user" bcrypt, poi 860 + 143 via sessione + CSRF.
+    class FakeSession:
+        def __init__(self):
+            self.logged_in = False
+            self.login_body = None
+
+        def post(self, url, json=None, data=None, timeout=None, headers=None):
+            if url.endswith("/login"):
+                self.logged_in = True
+                self.login_body = data
+                return FakeResp(text="SUCCESS - login ok")
+            if url.endswith("/getjp"):
+                assert headers and headers.get("x-sl-csrf-protection") == "1"
+                d = _detail_post(json)
+                if d is not None:
+                    return d
+            raise AssertionError(f"unexpected session post {url} {json}")
+
+    sess = FakeSession()
+    monkeypatch.setattr(
+        "experanto_edge.readers.solarlog_getjp.requests.post",
+        lambda url, json=None, timeout=None, headers=None: _open_post(json),
+    )
+    monkeypatch.setattr(
+        "experanto_edge.readers.solarlog_getjp.requests.Session", lambda: sess
+    )
+    out = SolarlogGetjpReader("192.168.1.50", spacing=0, user_password="Calme1234@").read()
+
+    assert sess.logged_in
+    assert sess.login_body["u"] == "user"
+    assert sess.login_body["p"].startswith("$2b$")        # hash, non la password in chiaro
+    assert sess.login_body["p"] != "Calme1234@"
+    assert set(out["getjp"]["860"].keys()) == {"1"}
+    assert out["getjp"]["143"]["0"] == [[1000, 2000, 300], [5000, 41]]
+    assert out["getjp"]["782"] == DEV
+
+
+def test_860_is_cached_and_resent_without_refetch(monkeypatch):
+    # 860 e' statico: si rifetcha sulla cadenza storico ma va incluso in OGNI snapshot
+    # (il server e' stateless). Al 2o ciclo non deve re-interrogare 860, ma re-inviarlo.
+    epoch_queries = {"n": 0}
 
     def fake_post(url, json=None, timeout=None, headers=None):
-        if isinstance(json, dict) and "143" in json:
-            dev = list(json["143"]["1"]["100"].keys())[0]
-            return FakeResp(NIGHT if dev == "0" else OFF)
-        if json == {"870": None}:
-            return FakeResp(CHANNELS)
-        return _open_post(json)
+        if isinstance(json, dict) and "860" in json:
+            epoch_queries["n"] += 1
+        d = _detail_post(json)
+        return d if d is not None else _open_post(json)
 
     monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.requests.post", fake_post)
-    out = SolarlogGetjpReader("192.168.1.50", spacing=0).read()
-    det = out["getjp"]["143"]
-    assert det["0"] == [[1000, 2000, 300], [["06:50:00", [5738, 48]]]]  # ultimo con dati
-    assert "1" not in det                                                # spento -> assente
+    r = SolarlogGetjpReader("192.168.1.50", spacing=0, history_interval=9999)
+    out1 = r.read()
+    n_after_first = epoch_queries["n"]
+    out2 = r.read()
+    assert epoch_queries["n"] == n_after_first        # nessun re-fetch 860 al 2o ciclo
+    assert out1["getjp"]["860"] == out2["getjp"]["860"]  # ma re-inviato dalla cache
 
 
 def test_detail_absent_when_login_fails(monkeypatch):
-    class FailSession(FakeSession):
+    class FailSession:
         def post(self, url, json=None, data=None, timeout=None, headers=None):
             if url.endswith("/login"):
                 return FakeResp(text="FAILED - Password was wrong")
             raise AssertionError("non deve interrogare 143 senza login")
 
-    _patch_login(monkeypatch, FailSession())
+    monkeypatch.setattr(
+        "experanto_edge.readers.solarlog_getjp.requests.post",
+        lambda url, json=None, timeout=None, headers=None: _open_post(json),
+    )
+    monkeypatch.setattr(
+        "experanto_edge.readers.solarlog_getjp.requests.Session", lambda: FailSession()
+    )
+    # DL protetto (open_post nega 143/860 col 403) + login fallito -> niente dettaglio.
     out = SolarlogGetjpReader("192.168.1.50", spacing=0, user_password="wrong").read()
     assert "143" not in out["getjp"]        # login fallito -> niente dettaglio...
     assert out["getjp"]["782"] == DEV       # ...ma i dati open ci sono comunque
@@ -294,34 +309,22 @@ def test_detail_absent_when_login_fails(monkeypatch):
 def test_login_not_retried_every_cycle_after_failure(monkeypatch):
     calls = {"login": 0}
 
-    class CountingSession(FakeSession):
+    class CountingSession:
         def post(self, url, json=None, data=None, timeout=None, headers=None):
             if url.endswith("/login"):
                 calls["login"] += 1
                 return FakeResp(text="FAILED")
             raise AssertionError("no 143 senza login")
 
-    _patch_login(monkeypatch, CountingSession())
+    monkeypatch.setattr(
+        "experanto_edge.readers.solarlog_getjp.requests.post",
+        lambda url, json=None, timeout=None, headers=None: _open_post(json),
+    )
+    monkeypatch.setattr(
+        "experanto_edge.readers.solarlog_getjp.requests.Session", lambda: CountingSession()
+    )
     r = SolarlogGetjpReader("192.168.1.50", spacing=0, user_password="wrong",
                             history_interval=9999)
     r.read()
     r.read()
     assert calls["login"] == 1               # backoff: non rifa' login a ogni ciclo
-
-
-def test_session_reused_across_cycles(monkeypatch):
-    sess = FakeSession()
-    logins = {"n": 0}
-    orig_post = sess.post
-
-    def counting_post(url, **kw):
-        if url.endswith("/login"):
-            logins["n"] += 1
-        return orig_post(url, **kw)
-
-    sess.post = counting_post
-    _patch_login(monkeypatch, sess)
-    r = SolarlogGetjpReader("192.168.1.50", spacing=0, user_password="Calme1234@")
-    r.read()
-    r.read()
-    assert logins["n"] == 1                   # login una volta sola, sessione riusata

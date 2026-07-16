@@ -18,18 +18,25 @@ lato agente):
   {"877": null}           -> storico MENSILE: [[data, resa_Wh, ...], ...].
   {"878": null}           -> storico ANNUALE: idem.
 
-Livello "user" (login lato agente con la password UTENTE del datalogger). Sblocca il
-DETTAGLIO per-inverter, non esposto all'API open:
-  {"143": {"1": {"100": {"<dev>": null}}}}  -> min-data intraday per-inverter: righe
-        [["HH:MM:SS", [~65 canali]], ...] con temperatura, Udc/Idc/Pdc per stringa,
-        Uac per fase, frequenza, Pac per fase. Richiede l'header
-        `x-sl-csrf-protection: 1`, altrimenti "ACCESS DENIED" anche da loggati.
-  {"870": null}           -> dizionario canali [type, channel, trans, label, unit] che
-        da' il significato delle colonne del 143 (es. type 6 = temperatura). Statico.
-Login: {"550": null} da i salt bcrypt; p = bcrypt(password_user, salt_550/104);
-POST /login  body `u=user&p=<hash>`  -> "SUCCESS..." + cookie di sessione.
-Se `user_password` non e' impostata, il reader resta al solo livello open (nessuna
-regressione): il dettaglio 143/870 semplicemente non viene raccolto.
+DETTAGLIO per-inverter (temperatura / MPPT / tensione / frequenza). Sbloccato
+2026-07-16 (il "860 = 503" era un formato di richiesta sbagliato + rate-limit):
+  {"860": {"<idx>": null}} -> config canali dell'epoch <idx> (INDICIZZATA: la forma
+        bare {"860": null} manda il DL in 500). Ogni epoch = uno snapshot config;
+        l'epoch corrente e' l'indice piu' alto. Per device: channels.min = lista
+        ordinata [type, channel], l'indice E' la colonna del 143. Statico -> lo
+        rileggiamo di rado (cadenza storico) ma lo INCLUDIAMO in ogni snapshot,
+        perche' il server e' stateless e ne ha bisogno per mappare a ogni ciclo.
+  {"143": {"1": {"101": {"<dev>": null}}}} -> VALORI CORRENTI del singolo inverter:
+        [[from, to, interval], [~65 valori]] (~208 B/inverter, NON la curva del
+        giorno). type->campo (validato Growatt MAX-125KTL3-XLV): 6=temp 4=freq
+        10=status 11=error 1=Pac 3=Uac 44=Iac 12=Udc 45/56=Idc 5=Pdc.
+Il mapping colonna->campo e' interamente SERVER-SIDE (`impianti/solarlog_local.py`):
+il reader forwarda solo i blocchi raw 860 (ultima epoch) + 143 (valori correnti).
+
+Se il datalogger e' protetto da password il dettaglio richiede login utente
+({"550": null} da i salt bcrypt; POST /login) + header `x-sl-csrf-protection: 1`.
+Senza password il dettaglio e' esposto col solo header CSRF (caso "install pulito").
+Il dettaglio e' dietro il flag `collect_inverter_detail` (default False lato agente).
 """
 from __future__ import annotations
 
@@ -50,12 +57,20 @@ QUERY_SERIALS = {"740": None}
 QUERY_HIST_MONTH = {"877": None}
 QUERY_HIST_YEAR = {"878": None}
 QUERY_SALTS = {"550": None}
-QUERY_CHANNELS = {"870": None}
+
+# Numero massimo di epoch 860 da sondare cercando quella corrente (backstop: le
+# epoch sono contigue 0..N e in pratica poche, ma non ne conosciamo il totale).
+_MAX_EPOCHS = 40
+
+
+def _epoch_query(idx: int) -> Dict[str, Any]:
+    """getjp per la config-canali dell'epoch <idx> (860 INDICIZZATO, non bare)."""
+    return {"860": {str(idx): None}}
 
 
 def _detail_query(dev: str) -> Dict[str, Any]:
-    """getjp per il dettaglio intraday del singolo inverter (indice `dev`)."""
-    return {"143": {"1": {"100": {str(dev): None}}}}
+    """getjp per i VALORI CORRENTI (101) del singolo inverter (indice `dev`)."""
+    return {"143": {"1": {"101": {str(dev): None}}}}
 
 
 def _real_inverter_indices(serials: Any, dev_map: Any) -> List[str]:
@@ -102,23 +117,24 @@ class SolarlogGetjpReader(Reader):
         self.timeout = timeout
         # Il Solar-Log risponde 503 se interrogato troppo in fretta: spaziamo le query.
         self.spacing = spacing
-        # Lo storico (877/878) cambia lentamente: lo rileggiamo solo ogni tot secondi,
-        # non a ogni ciclo (riduce il carico/503 sul datalogger).
+        # Lo storico (877/878) e la config-canali 860 cambiano lentamente: li rileggiamo
+        # solo ogni tot secondi, non a ogni ciclo (riduce il carico/503 sul datalogger).
         self.history_interval = history_interval
         self._last_history = 0.0
-        # Password UTENTE: se presente abilita il login e il dettaglio 143/870.
+        # Password UTENTE: se presente abilita il login e il dettaglio privilegiato.
         self.user_password = user_password or ""
-        # Dettaglio per-inverter (143). La libreria lo abilita di default, ma
-        # l'AGENTE lo tiene OFF via config (`collect_inverter_detail: false`,
-        # default): il 143 scarica l'INTERA giornata per inverter (~100KB ciascuno)
-        # e il suo mapping colonne richiede i blocchi 860/870 che sul firmware
-        # attuale rispondono 503 -> lato server e' inutilizzabile. Non vale ~1MB/ciclo
-        # di carico sul datalogger LIVE finche' non e' mappabile.
+        # Dettaglio per-inverter (860+143). OFF di default lato AGENTE (config
+        # `collect_inverter_detail`): interroga il 143 per ogni inverter reale ad
+        # ogni ciclo -> carico extra sul datalogger LIVE. La libreria lo abilita di
+        # default per l'uso stand-alone.
         self.collect_detail = bool(collect_detail)
         # Sessione HTTP loggata (cookie jar). None = non loggati / login non tentato.
         self._session: Optional[requests.Session] = None
-        # Dizionario canali 870: statico, lo prendiamo una volta per sessione.
-        self._channels: Optional[Any] = None
+        # 860 (channels.min per device, epoch corrente): cache locale statica. La
+        # rifetchiamo sulla cadenza storico ma la INCLUDIAMO in OGNI snapshot: il
+        # server e' stateless e senza 860 non puo' mappare le colonne del 143.
+        self._channels_860: Optional[Dict[str, Any]] = None
+        self._last_860 = 0.0
         # Backoff sui login falliti: non martellare /login a ogni ciclo.
         self._login_retry_after = 0.0
         # Backoff sul dettaglio non disponibile (ne' open ne' via login): non ritentare
@@ -154,7 +170,7 @@ class SolarlogGetjpReader(Reader):
         except ReaderError:
             return None
 
-    # ---- Login utente per il dettaglio privilegiato (143/870) ----
+    # ---- Login utente per il dettaglio privilegiato (860/143) ----
 
     def _ensure_session(self) -> Optional[requests.Session]:
         """Restituisce una sessione loggata come "user", o None se non disponibile.
@@ -189,7 +205,7 @@ class SolarlogGetjpReader(Reader):
             if "SUCCESS" not in r.text.upper():
                 raise ReaderError(f"login rifiutato: {r.text[:40]!r}")
             self._session = sess
-            self._channels = None  # ricarica il dizionario canali sulla nuova sessione
+            self._channels_860 = None  # ricarica la config-canali sulla nuova sessione
             log.info("login datalogger (user) riuscito su %s", self.base_url)
             return sess
         except (ReaderError, requests.RequestException, ValueError) as e:
@@ -212,13 +228,31 @@ class SolarlogGetjpReader(Reader):
                 self._session = None  # forza il re-login al prossimo ciclo
             return None
 
-    def _read_detail(self, device_indices: List[str]) -> Dict[str, Any]:
-        """Dettaglio per-inverter (143) per ciascun device, + dizionario canali (870).
+    # ---- Config-canali 860 (epoch corrente) ----
 
-        Forwarda solo l'ULTIMA riga intraday di ogni inverter (i valori correnti:
-        temperatura, Udc/Idc/Pdc, Uac, frequenza) per non spedire tutta la serie del
-        giorno a ogni ciclo. Il server mappa le colonne usando 870. Best-effort per
-        device: un inverter che non risponde non blocca gli altri.
+    def _fetch_channels_860(self) -> Optional[Dict[str, Any]]:
+        """860 dell'epoch CORRENTE = ``{"<idx>": epoch}`` con l'indice piu' alto.
+
+        Sonda gli indici epoch 0,1,2,... (860 INDICIZZATO: la forma bare 500-a) e
+        tiene l'ultima valida = layout config attuale. best-effort (header CSRF su
+        DL aperto, sessione se protetto). None se nessuna epoch risponde.
+        """
+        latest: Optional[Dict[str, Any]] = None
+        for i in range(_MAX_EPOCHS):
+            time.sleep(self.spacing)
+            resp = self._getjp_priv_optional(_epoch_query(i))
+            epoch = resp.get("860", {}).get(str(i)) if isinstance(resp, dict) else None
+            if not (isinstance(epoch, list) and len(epoch) >= 2):
+                break                          # epoch inesistente -> stop
+            latest = {str(i): epoch}
+        return latest
+
+    def _read_detail(self, device_indices: List[str]) -> Dict[str, Any]:
+        """Valori correnti (143:101) per ciascun inverter -> ``{"143": {idx: node}}``.
+
+        node = ``[[from, to, interval], [~65 valori]]`` (~208 B/inverter). best-effort
+        per device: un inverter che non risponde non blocca gli altri. Il server mappa
+        le colonne usando il 860 (channels.min) forwardato a parte.
         """
         detail: Dict[str, Any] = {}
         for idx in device_indices:
@@ -226,32 +260,11 @@ class SolarlogGetjpReader(Reader):
             resp = self._getjp_priv_optional(_detail_query(idx))
             node = None
             if isinstance(resp, dict):
-                node = resp.get("143", {}).get("1", {}).get("100", {}).get(str(idx))
-            # node atteso: [[from, to, interval], [[time, [vals]], ...]]
-            rows = node[1] if (isinstance(node, list) and len(node) >= 2
-                               and isinstance(node[1], list)) else []
-            # Ultima riga con almeno un valore reale: di notte gli slot recenti sono tutti
-            # None (inverter spento). Forwardiamo l'ultimo campione con dati + il suo
-            # timestamp; e' il server a giudicarne la freschezza (header[1] = "to").
-            last = None
-            for row in reversed(rows):
-                vals = row[1] if isinstance(row, list) and len(row) >= 2 else None
-                if isinstance(vals, list) and any(v is not None for v in vals):
-                    last = row
-                    break
-            if last is not None:
-                detail[str(idx)] = [node[0], [last]]  # header + ultima riga con dati reali
-        out: Dict[str, Any] = {}
-        if detail:
-            out["143"] = detail
-            if self._channels is None:
-                time.sleep(self.spacing)
-                ch = self._getjp_priv_optional(QUERY_CHANNELS)
-                if isinstance(ch, dict):
-                    self._channels = ch.get("870")  # forwarda la sola lista canali
-            if self._channels is not None:
-                out["870"] = self._channels
-        return out
+                node = resp.get("143", {}).get("1", {}).get("101", {}).get(str(idx))
+            # node atteso: [[from, to, interval], [valori...]] — valori correnti.
+            if isinstance(node, list) and len(node) >= 2 and isinstance(node[1], list):
+                detail[str(idx)] = node
+        return {"143": detail} if detail else {}
 
     # ---- Ciclo di lettura ----
 
@@ -281,19 +294,26 @@ class SolarlogGetjpReader(Reader):
                 self._last_history = now
 
         # Dettaglio per-inverter (temperatura/Udc/Idc/Pdc/Uac/frequenza). OFF di
-        # default (self.collect_detail): il 143 scarica l'intera giornata per inverter
-        # e senza 860/870 (503 sul firmware attuale) e' inutilizzabile lato server.
-        # Quando abilitato: si tenta col solo header CSRF (datalogger senza password lo
-        # espone gia'); se negato e c'e' una password utente, _ensure_session fa login.
-        # Interrogato SOLO sugli inverter reali (740), non su tutti i 30+ slot. Backoff
-        # se non arriva nulla. Nessuna regressione sul dato open.
+        # default (self.collect_detail). Quando abilitato: si tenta col solo header
+        # CSRF (datalogger senza password lo espone gia'); se negato e c'e' una
+        # password utente, _ensure_session fa login. Il 143 e' interrogato SOLO sugli
+        # inverter reali (740). Il 860 (channels.min, statico) e' rifetchato sulla
+        # cadenza storico ma incluso in OGNI snapshot (il server ne ha bisogno per
+        # mappare). Tutto best-effort: nessuna regressione sul dato open.
         if (self.collect_detail and isinstance(devices, dict)
                 and time.monotonic() >= self._detail_retry_after):
             indices = _real_inverter_indices(serials, devices.get("782"))
             if indices:
                 self._ensure_session()    # login solo se c'e' password (no-op altrimenti)
+                if self._channels_860 is None or (now - self._last_860 >= self.history_interval):
+                    ch860 = self._fetch_channels_860()
+                    if ch860:
+                        self._channels_860 = ch860
+                        self._last_860 = now
                 detail = self._read_detail(indices)
-                if detail:
+                if detail and self._channels_860:
+                    # Entrambi necessari: senza 860 le colonne del 143 sono numeri.
+                    getjp["860"] = self._channels_860
                     getjp.update(detail)
                 else:
                     self._detail_retry_after = time.monotonic() + self.history_interval

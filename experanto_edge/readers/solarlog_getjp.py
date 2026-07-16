@@ -26,10 +26,12 @@ DETTAGLIO per-inverter (temperatura / MPPT / tensione / frequenza). Sbloccato
         ordinata [type, channel], l'indice E' la colonna del 143. Statico -> lo
         rileggiamo di rado (cadenza storico) ma lo INCLUDIAMO in ogni snapshot,
         perche' il server e' stateless e ne ha bisogno per mappare a ogni ciclo.
-  {"143": {"1": {"101": {"<dev>": null}}}} -> VALORI CORRENTI del singolo inverter:
+  {"143": {"<dev>": {"101": {"0": null}}}} -> VALORI CORRENTI del singolo inverter:
         [[from, to, interval], [~65 valori]] (~208 B/inverter, NON la curva del
-        giorno). type->campo (validato Growatt MAX-125KTL3-XLV): 6=temp 4=freq
-        10=status 11=error 1=Pac 3=Uac 44=Iac 12=Udc 45/56=Idc 5=Pdc.
+        giorno). L'indice device e' la PRIMA sotto-chiave dopo 143 (verificato live:
+        variare l'ULTIMA chiave NON cambia device, variare la PRIMA si'). type->campo
+        (validato Growatt MAX-125KTL3-XLV): 6=temp 4=freq 10=status 11=error 1=Pac
+        3=Uac 44=Iac 12=Udc 45/56=Idc 5=Pdc.
 Il mapping colonna->campo e' interamente SERVER-SIDE (`impianti/solarlog_local.py`):
 il reader forwarda solo i blocchi raw 860 (ultima epoch) + 143 (valori correnti).
 
@@ -69,8 +71,12 @@ def _epoch_query(idx: int) -> Dict[str, Any]:
 
 
 def _detail_query(dev: str) -> Dict[str, Any]:
-    """getjp per i VALORI CORRENTI (101) del singolo inverter (indice `dev`)."""
-    return {"143": {"1": {"101": {str(dev): None}}}}
+    """getjp per i VALORI CORRENTI (101) del singolo inverter (indice `dev`).
+
+    L'indice device e' la PRIMA sotto-chiave dopo 143 (verificato live: variare
+    l'ultima chiave NON seleziona il device, variare la prima si').
+    """
+    return {"143": {str(dev): {"101": {"0": None}}}}
 
 
 def _real_inverter_indices(serials: Any, dev_map: Any) -> List[str]:
@@ -260,7 +266,7 @@ class SolarlogGetjpReader(Reader):
             resp = self._getjp_priv_optional(_detail_query(idx))
             node = None
             if isinstance(resp, dict):
-                node = resp.get("143", {}).get("1", {}).get("101", {}).get(str(idx))
+                node = resp.get("143", {}).get(str(idx), {}).get("101", {}).get("0")
             # node atteso: [[from, to, interval], [valori...]] — valori correnti.
             if isinstance(node, list) and len(node) >= 2 and isinstance(node[1], list):
                 detail[str(idx)] = node

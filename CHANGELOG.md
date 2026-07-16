@@ -6,6 +6,16 @@ A `!` marks a **breaking change** (behaviour or config default changed).
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-07-16
+
+_Fix: 143 device index is the FIRST sub-key, not the last._
+
+### Fixed
+- **Per-inverter detail was reading one fixed device for all inverters.** The `143` device
+  index is the **first** sub-key (`{"143": {"<dev>": {"101": {"0": null}}}}`), not the last
+  (`{"143": {"1": {"101": {"<dev>": null}}}}`). Verified live: varying the last key returns the
+  same device; varying the first key selects it. Now each inverter gets its own temp/MPPT/phases.
+
 ## [0.3.1] — 2026-07-16
 
 _Per-inverter detail rework: usable telemetry via 860 + 143 current-values._

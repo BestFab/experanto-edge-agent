@@ -28,8 +28,9 @@ def _epoch(i):
 
 
 # 143:101 = valori CORRENTI: [[from, to, interval], [65 valori]] (qui 2, come channels.min).
-DETAIL_101_0 = {"143": {"1": {"101": {"0": [[1000, 2000, 300], [5000, 41]]}}}}
-DETAIL_101_1 = {"143": {"1": {"101": {"1": [[1000, 2000, 300], [6000, 43]]}}}}
+# Device = PRIMA sotto-chiave dopo 143 (Format B, verificato live).
+DETAIL_101_0 = {"143": {"0": {"101": {"0": [[1000, 2000, 300], [5000, 41]]}}}}
+DETAIL_101_1 = {"143": {"1": {"101": {"0": [[1000, 2000, 300], [6000, 43]]}}}}
 
 
 class FakeResp:
@@ -77,7 +78,7 @@ def _detail_post(json):
             return FakeResp({"860": {idx: _epoch(int(idx))}})
         return FakeResp({"860": {}})              # nessuna altra epoch -> stop iterazione
     if isinstance(json, dict) and "143" in json:
-        dev = list(json["143"]["1"]["101"].keys())[0]
+        dev = list(json["143"].keys())[0]                 # device = prima sotto-chiave
         return FakeResp(DETAIL_101_0 if dev == "0" else DETAIL_101_1)
     return None
 
@@ -165,7 +166,7 @@ def test_detail_only_queries_real_inverters(monkeypatch):
         if json == {"740": None}:
             return FakeResp(serials740)
         if isinstance(json, dict) and "143" in json:
-            queried.append(list(json["143"]["1"]["101"].keys())[0])
+            queried.append(list(json["143"].keys())[0])
         d = _detail_post(json)
         return d if d is not None else _open_post(json)
 

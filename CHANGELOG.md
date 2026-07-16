@@ -6,7 +6,9 @@ A `!` marks a **breaking change** (behaviour or config default changed).
 
 ## [Unreleased]
 
-_Branch `feat/edge-agent-e0` — Solar-Log data enrichment + WireGuard safety._
+## [0.3.0] — 2026-07-16
+
+_Solar-Log data enrichment + WireGuard safety._
 
 ### Added
 - **Per-inverter status** — the reader forwards getjp `608` (per-device `Normal`/`OFFLINE`/`RUNNING`;

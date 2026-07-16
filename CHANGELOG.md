@@ -32,6 +32,11 @@ _Solar-Log data enrichment + WireGuard safety._
 ### Fixed
 - The `143` reader forwards the last row that **has data**, not the literal last row — at night the
   recent intraday slots are all `None` (inverter asleep).
+- **OTA no longer reports false success** — `_launch_helper` now watches the detached root helper
+  briefly and surfaces an immediate `sudo -n` escalation denial (a `NoNewPrivileges` sandbox or a
+  missing sudoers rule) instead of returning "started" while nothing ran.
+- **Installer** — `/etc/experanto-edge` is created owned by the service user (was `root:root`), so
+  the agent can persist its config atomically instead of failing every save with `PermissionError`.
 
 ## [0.2.0] — 2026-07-12
 

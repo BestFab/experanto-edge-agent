@@ -64,7 +64,10 @@ id -u "$SVC_USER" >/dev/null 2>&1 || useradd --system --no-create-home --shell /
 
 echo "==> directory"
 install -d -o "$SVC_USER" -g "$SVC_USER" "$STATE_DIR"
-install -d "$CFG_DIR"
+# CFG_DIR owned by the service user too: the agent rewrites config.yaml atomically
+# (config.yaml.tmp -> rename) when it persists runtime state (interval, last_command_id,
+# ssh_open_until). root:root here => PermissionError on every save.
+install -d -o "$SVC_USER" -g "$SVC_USER" "$CFG_DIR"
 install -d "$RELEASES"
 
 echo "==> venv + pacchetto (release 'bootstrap')"

@@ -233,6 +233,31 @@ def test_publish_persistent_buffers_when_down(tmp_path):
     assert not t.published                                 # niente pubblicato mentre giu'
 
 
+def test_persistent_command_error_does_not_kill_loop(tmp_path):
+    # Un handler che alza (es. cfg.save PermissionError) NON deve fermare il loop
+    # persistente (come il path intermittente, protetto da run_forever).
+    cfg = make_cfg(tmp_path)
+    cfg.persistent_commands = True
+    t = FakeTransport(cmd={"command_id": "boom", "cmd": "get_diag", "args": {}})
+    agent = Agent(cfg, FakeReader(), t, Buffer(cfg.buffer_path))
+    n = {"c": 0}
+
+    def raiser(cmd):
+        n["c"] += 1
+        raise RuntimeError("cfg.save PermissionError simulata")
+    agent._dispatch_persistent = raiser
+    orig_next = t.next_command
+
+    def next_then_stop(timeout):     # dopo il comando che alza, ferma il loop
+        c = orig_next(timeout)
+        if c is None:
+            agent._stop.set()
+        return c
+    t.next_command = next_then_stop
+    agent._run_persistent()          # NON deve propagare l'eccezione
+    assert n["c"] == 1               # comando tentato, loop sopravvissuto fino allo stop
+
+
 def test_reader_error_persistent_still_status(tmp_path):
     cfg = make_cfg(tmp_path)
     t = FakeTransport()

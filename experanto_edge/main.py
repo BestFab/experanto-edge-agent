@@ -315,7 +315,11 @@ class Agent:
             wait = max(0.1, min(next_telemetry - time.time(), 5.0))
             cmd = self.transport.next_command(wait)
             if cmd:
-                self._dispatch_persistent(cmd)
+                try:
+                    self._dispatch_persistent(cmd)
+                except Exception:
+                    # un comando (o un cfg.save fallito) non deve MAI fermare il loop
+                    log.exception("errore gestendo comando")
                 if self._wake.is_set():          # read_now/rediscover -> lettura immediata
                     self._wake.clear()
                     next_telemetry = 0.0

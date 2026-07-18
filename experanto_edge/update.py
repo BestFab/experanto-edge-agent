@@ -33,12 +33,15 @@ import logging
 import os
 import subprocess
 import time
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 log = logging.getLogger("experanto-edge.update")
 
 _CHUNK = 64 * 1024
 _DOWNLOAD_TIMEOUT = 120
+# How long to watch the detached OTA helper before assuming it's underway. A real
+# install runs far longer; an immediate `sudo -n` denial exits well within this.
+_HELPER_LAUNCH_WINDOW_S = 4
 
 
 # ---------------------------------------------------------------------------
@@ -206,23 +209,54 @@ def reboot(cfg) -> Tuple[bool, str]:
 
 
 def _launch_helper(cfg, *args: str) -> Tuple[bool, str]:
-    """Launch the root OTA helper detached (survives the agent restart)."""
+    """Launch the root OTA helper detached (must survive the agent's own restart).
+
+    The helper runs LONG (venv install + selfcheck + swap + service restart), so we
+    detach it. But we do NOT blindly assume success: `sudo -n` can be denied *after*
+    the spawn (e.g. the systemd unit sets `NoNewPrivileges=yes`, or the scoped sudoers
+    rule is missing) — which previously looked like a successful OTA while nothing ran.
+    We give it a short window: if it dies fast with a non-zero code, surface the error;
+    if it's still running when the window elapses, the install is underway and we detach.
+    stderr goes to a file (not a pipe) so the long-running helper can't deadlock on a
+    full pipe buffer.
+    """
     helper = getattr(cfg, "ota_helper", "") or ""
     if not helper or not os.path.exists(helper):
         return False, f"ota_helper non trovato: {helper or '(non configurato)'}"
+    state_dir = os.path.dirname(getattr(cfg, "buffer_path", "") or
+                                "/var/lib/experanto-edge/buffer.db") or "/var/lib/experanto-edge"
+    err_path = os.path.join(state_dir, ".ota-helper.err")
     cmd = ["sudo", "-n", helper, *args]
+    errf: Any = subprocess.DEVNULL
     try:
-        subprocess.Popen(
-            cmd,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,      # detach: agent restart won't kill it
-            close_fds=True,
+        errf = open(err_path, "wb")
+    except OSError:
+        pass  # non-fatal: we just lose the early error text
+    try:
+        proc = subprocess.Popen(
+            cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=errf, start_new_session=True, close_fds=True,
         )
     except Exception as e:
         return False, f"avvio helper fallito: {e}"
-    return True, "helper avviato"
+    finally:
+        if errf is not subprocess.DEVNULL:
+            errf.close()
+    try:
+        rc = proc.wait(timeout=_HELPER_LAUNCH_WINDOW_S)
+    except subprocess.TimeoutExpired:
+        return True, "helper avviato"          # still running = install underway -> detach
+    # Exited within the window -> a fast failure (a real install runs far longer).
+    detail = ""
+    try:
+        with open(err_path, "r", errors="replace") as f:
+            detail = f.read().strip()[:200]
+    except OSError:
+        pass
+    if rc != 0:
+        return False, (f"helper fallito all'avvio (rc={rc}): "
+                       f"{detail or 'sudo -n negato? (NoNewPrivileges o regola sudoers mancante)'}")
+    return True, "helper eseguito"
 
 
 def _safe_unlink(path: str) -> None:

@@ -2,7 +2,12 @@
 # Experanto Edge agent installer (Raspberry Pi / Debian).
 # Usage:
 #   sudo ./install.sh --code EXP-XXXX-XXXX --secret <SECRET> [--station <UUID>] \
-#                     [--broker mqtt.experanto.it] [--datalogger-ip 192.168.1.50]
+#                     [--broker mqtt.experanto.it] [--datalogger-ip 192.168.1.50] \
+#                     [--wg-endpoint vps:51820 --wg-hub-pubkey <KEY> --wg-address 10.8.0.5/32 [--wg-persistent]]
+# With --wg-endpoint the installer joins the Pi to YOUR WireGuard hub (no third party): it
+# generates a keypair, writes /etc/wireguard/wg-experanto.conf, and prints the Pi's PUBLIC key
+# to register as a peer on the hub. --wg-persistent keeps the link always up (for the bring-up);
+# otherwise it's on-demand via `open_ssh`. See WG_HUB.md for the server side.
 #
 # Layout (rollback-friendly, phase E5):
 #   /opt/experanto-edge/releases/<name>/venv        one venv per release
@@ -19,7 +24,19 @@ STATE_DIR=/var/lib/experanto-edge
 SVC_USER=experanto-edge
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Self-bootstrap: se install.sh viene eseguito da solo (curl … | sudo bash), il pacchetto
+# non è accanto → scarica l'ULTIMA RELEASE (fallback su main) e ri-esegui da lì.
+if [[ ! -f "$SRC_DIR/pyproject.toml" ]]; then
+  echo "==> bootstrap: scarico l'ultima release dell'agente"
+  command -v tar >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq tar; }
+  TMP="$(mktemp -d)"
+  TARBALL="$(curl -fsSL https://api.github.com/repos/BestFab/experanto-edge-agent/releases/latest 2>/dev/null | grep -oE '"tarball_url"[^,]+' | cut -d'"' -f4)"
+  curl -fsSL "${TARBALL:-https://github.com/BestFab/experanto-edge-agent/archive/refs/heads/main.tar.gz}" | tar -xz -C "$TMP" --strip-components=1
+  exec bash "$TMP/install.sh" "$@"
+fi
+
 CODE=""; SECRET=""; STATION=""; BROKER=""; DL_IP=""; UPD_URL=""; UPD_KEY=""
+WG_ENDPOINT=""; WG_HUB_PUBKEY=""; WG_ADDRESS=""; WG_SSH_USER=""; WG_PERSISTENT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --code) CODE="$2"; shift 2;;
@@ -29,6 +46,11 @@ while [[ $# -gt 0 ]]; do
     --datalogger-ip) DL_IP="$2"; shift 2;;
     --update-base-url) UPD_URL="$2"; shift 2;;
     --update-pubkey) UPD_KEY="$2"; shift 2;;
+    --wg-endpoint) WG_ENDPOINT="$2"; shift 2;;
+    --wg-hub-pubkey) WG_HUB_PUBKEY="$2"; shift 2;;
+    --wg-address) WG_ADDRESS="$2"; shift 2;;
+    --wg-ssh-user) WG_SSH_USER="$2"; shift 2;;
+    --wg-persistent) WG_PERSISTENT="1"; shift;;
     *) echo "arg sconosciuto: $1" >&2; exit 1;;
   esac
 done
@@ -42,7 +64,10 @@ id -u "$SVC_USER" >/dev/null 2>&1 || useradd --system --no-create-home --shell /
 
 echo "==> directory"
 install -d -o "$SVC_USER" -g "$SVC_USER" "$STATE_DIR"
-install -d "$CFG_DIR"
+# CFG_DIR owned by the service user too: the agent rewrites config.yaml atomically
+# (config.yaml.tmp -> rename) when it persists runtime state (interval, last_command_id,
+# ssh_open_until). root:root here => PermissionError on every save.
+install -d -o "$SVC_USER" -g "$SVC_USER" "$CFG_DIR"
 install -d "$RELEASES"
 
 echo "==> venv + pacchetto (release 'bootstrap')"
@@ -76,6 +101,46 @@ if [[ -n "$DL_IP" ]]; then sed -i "s/^datalogger_ip:.*/datalogger_ip: \"$DL_IP\"
 # OTA config (delimitatore | perche' URL/base64 contengono /)
 if [[ -n "$UPD_URL" ]]; then sed -i "s|^update_base_url:.*|update_base_url: \"$UPD_URL\"|" "$CFG"; fi
 if [[ -n "$UPD_KEY" ]]; then sed -i "s|^update_public_key:.*|update_public_key: \"$UPD_KEY\"|" "$CFG"; fi
+# WireGuard verso il TUO hub (nessun servizio terzo). Genera keypair, scrive la config e
+# stampa la PUBBLICA del Pi da registrare come peer sull'hub. Opzionale.
+WG_PUBKEY=""
+if [[ -n "$WG_ENDPOINT" ]]; then
+  [[ -n "$WG_ADDRESS" && -n "$WG_HUB_PUBKEY" ]] || { echo "--wg-endpoint richiede --wg-address e --wg-hub-pubkey" >&2; exit 1; }
+  echo "==> WireGuard (hub $WG_ENDPOINT, IP overlay $WG_ADDRESS)"
+  apt-get install -y -qq wireguard-tools
+  WG_IF="wg-experanto"; WG_CONF="/etc/wireguard/$WG_IF.conf"
+  install -d -m 700 /etc/wireguard
+  if [[ ! -f "$WG_CONF" ]]; then
+    WG_PRIV="$(wg genkey)"
+    ( umask 077; cat > "$WG_CONF" <<WGEOF
+[Interface]
+PrivateKey = $WG_PRIV
+Address = $WG_ADDRESS
+
+[Peer]
+PublicKey = $WG_HUB_PUBKEY
+Endpoint = $WG_ENDPOINT
+AllowedIPs = 10.8.0.0/24
+PersistentKeepalive = 25
+WGEOF
+    )
+  fi
+  chmod 600 "$WG_CONF"
+  WG_PUBKEY="$(awk -F' = ' '/^PrivateKey/{print $2}' "$WG_CONF" | wg pubkey)"
+  sed -i "s|^wg_interface:.*|wg_interface: \"$WG_IF\"|" "$CFG"
+  sed -i "s|^wg_address:.*|wg_address: \"$WG_ADDRESS\"|" "$CFG"
+  if [[ -n "$WG_SSH_USER" ]]; then sed -i "s|^wg_ssh_user:.*|wg_ssh_user: \"$WG_SSH_USER\"|" "$CFG"; fi
+  # sudoers: l'agente (non-root) puo' alzare/abbassare SOLO questa interfaccia WireGuard
+  cat >/etc/sudoers.d/experanto-edge-wg <<EOF
+$SVC_USER ALL=(root) NOPASSWD: /usr/bin/wg-quick up $WG_IF, /usr/bin/wg-quick down $WG_IF
+EOF
+  chmod 440 /etc/sudoers.d/experanto-edge-wg
+  visudo -cf /etc/sudoers.d/experanto-edge-wg >/dev/null
+  if [[ -n "$WG_PERSISTENT" ]]; then
+    echo "==> WireGuard persistente (wg-quick@$WG_IF sempre su — per il bring-up)"
+    systemctl enable --now "wg-quick@$WG_IF" || true   # sale quando il peer e' registrato sull'hub
+  fi
+fi
 chown "$SVC_USER":"$SVC_USER" "$CFG"; chmod 640 "$CFG"
 
 echo "==> servizio systemd"
@@ -91,4 +156,11 @@ EOF
 systemctl daemon-reload
 systemctl enable --now experanto-edge.service
 
+if [[ -n "$WG_PUBKEY" ]]; then
+  echo
+  echo "==> AZIONE sull'hub WireGuard: registra questo Pi come peer (vedi WG_HUB.md)"
+  echo "    PublicKey  = $WG_PUBKEY"
+  echo "    AllowedIPs = $WG_ADDRESS"
+  echo
+fi
 echo "==> fatto. Stato:"; systemctl --no-pager status experanto-edge.service || true

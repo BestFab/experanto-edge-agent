@@ -34,11 +34,30 @@ class Config:
     reader_type: str = "solarlog_getjp"
     datalogger_ip: str = ""
     datalogger_port: int = 80
+    # Password UTENTE del datalogger (livello "user"). Se impostata, l'agente fa login e
+    # legge anche il dettaglio per-inverter (143: temperatura, Udc/Idc/Pdc per stringa, Uac,
+    # frequenza) che l'API "open" non espone. Vuota = solo dati open (nessuna regressione).
+    # Raccolta dal wizard/console per install; per datalogger senza password resta vuota.
+    datalogger_user_password: str = ""
+    # Raccolta del dettaglio per-inverter (getjp 143: temperatura/Udc/Idc/Pdc/Uac/
+    # frequenza). OFF di default: il 143 scarica l'intera giornata per inverter e il
+    # mapping colonne richiede i blocchi 860/870, che sul firmware attuale rispondono
+    # 503 (dato inutilizzabile lato server). Abilitare a `true` solo quando 860/870
+    # tornano disponibili e il mapping server e' pronto.
+    collect_inverter_detail: bool = False
 
     # --- behaviour ---
     interval: int = 300                  # seconds between cycles (= worker poll rate)
     connect_timeout: int = 20
     command_wait: float = 3.0            # seconds to wait for a retained command per cycle
+    # Connessione MQTT PERSISTENTE: quando True l'agente resta connesso al broker e
+    # riceve i comandi ISTANTANEAMENTE (on_message -> coda -> loop principale, stesso
+    # thread: nessuna concorrenza sul datalogger), mentre la telemetria resta sul
+    # timer `interval`. Serve allo storico on-demand (il server aspetta ~22s la curva
+    # 143). Default False = modello intermittente storico (connect/pubblica/disconnetti
+    # a ogni ciclo, comando letto una-tantum): abilitare SOLO dopo validazione in
+    # staging (consumo/reconnect/24h). WireGuard resta indipendente (verso il broker).
+    persistent_commands: bool = False
     buffer_path: str = "/var/lib/experanto-edge/buffer.db"
     buffer_max_rows: int = 5000
     log_level: str = "INFO"
@@ -54,8 +73,28 @@ class Config:
     app_dir: str = "/opt/experanto-edge"          # holds current -> releases/{version}
     ota_helper: str = "/opt/experanto-edge/ota-helper.sh"
 
+    # --- remote access (WireGuard to a self-hosted hub — no third-party) ---
+    # A Pi at a customer site has no inbound ports (often CGNAT). It joins YOUR WireGuard hub
+    # (one UDP port on your VPS — coexists with nginx/sshd, even UDP/443) as a peer with a
+    # fixed overlay IP; you SSH straight to that IP. On `open_ssh` the agent brings the WG
+    # interface up for `ssh_default_ttl` seconds, then tears it down (enforced each cycle).
+    # Keys/endpoint/peer live in /etc/wireguard/<iface>.conf; here we only need iface + IP.
+    wg_interface: str = "wg-experanto"   # name of /etc/wireguard/<iface>.conf
+    wg_address: str = ""                 # this Pi's overlay IP, e.g. 10.8.0.5/32 (per device)
+    wg_ssh_user: str = ""                # login user shown in the reach hint (optional)
+    ssh_default_ttl: int = 900           # seconds the tunnel stays up per open_ssh
+    # Chi possiede l'interfaccia WireGuard. True (DEFAULT) = l'overlay e' PERSISTENTE e
+    # gestito dal sistema (es. `wg-quick@<iface>` abilitato al boot): e' la LIFELINE del Pi
+    # e l'agente NON deve mai toccarla -> open_ssh/close_ssh diventano no-op sull'interfaccia
+    # (resta comunque su, il Pi resta raggiungibile). Cosi' agente-dati e connettivita'-WG
+    # sono INDIPENDENTI: un deploy dell'agente non puo' abbattere la lifeline.
+    # Mettere False SOLO su Pi dove l'agente possiede un'interfaccia on-demand (nessun
+    # overlay persistente): li' l'agente la porta su/giu' a finestra (comportamento storico).
+    wg_managed_externally: bool = True
+
     # --- persisted runtime state ---
     last_command_id: str = ""
+    ssh_open_until: int = 0              # epoch until which the SSH tunnel stays up (0 = closed)
 
     _path: str = field(default=DEFAULT_CONFIG_PATH, repr=False)
 

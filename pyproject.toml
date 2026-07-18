@@ -1,6 +1,6 @@
 [project]
 name = "experanto-edge-agent"
-version = "0.1.0"
+version = "0.3.2"
 description = "Experanto Edge agent — bridges a local datalogger (Solar-Log Base 2000) to Experanto over MQTT."
 readme = "README.md"
 license = { text = "MIT" }
@@ -10,6 +10,7 @@ dependencies = [
     "requests>=2.25",
     "PyYAML>=5.4",
     "cryptography>=41",     # Ed25519 verification of signed OTA releases (E5)
+    "bcrypt>=4.0",          # login "user" al datalogger per il dettaglio per-inverter (143)
 ]
 
 [project.optional-dependencies]

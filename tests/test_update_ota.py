@@ -206,6 +206,35 @@ def test_launch_helper_missing_script_fails(tmp_path):
     assert not ok and "ota_helper" in why
 
 
+def test_launch_helper_surfaces_immediate_denial(tmp_path, monkeypatch):
+    # Regression: `sudo -n` can be denied AFTER the spawn (NoNewPrivileges / missing
+    # sudoers) — the helper exits fast non-zero. That must be reported, NOT swallowed
+    # as a successful OTA (the old bug: any Popen that didn't throw => "success").
+    helper = tmp_path / "ota-helper.sh"; helper.write_text("#!/bin/sh\nexit 13\n")
+    cfg = types.SimpleNamespace(ota_helper=str(helper), buffer_path=str(tmp_path / "buf.db"))
+
+    class FastFail:
+        def wait(self, timeout=None):
+            return 13                    # exits within the window with an error
+    monkeypatch.setattr(update.subprocess, "Popen", lambda *a, **k: FastFail())
+    ok, why = update._launch_helper(cfg, "agent", "0.3.0", "art")
+    assert not ok and "rc=13" in why
+
+
+def test_launch_helper_detaches_when_still_running(tmp_path, monkeypatch):
+    # The happy path: a real install runs long -> wait() times out -> we detach and
+    # report launched (the helper will restart the agent when it's done).
+    helper = tmp_path / "ota-helper.sh"; helper.write_text("#!/bin/sh\nsleep 60\n")
+    cfg = types.SimpleNamespace(ota_helper=str(helper), buffer_path=str(tmp_path / "buf.db"))
+
+    class StillRunning:
+        def wait(self, timeout=None):
+            raise update.subprocess.TimeoutExpired("ota-helper", timeout)
+    monkeypatch.setattr(update.subprocess, "Popen", lambda *a, **k: StillRunning())
+    ok, why = update._launch_helper(cfg, "agent", "0.3.0", "art")
+    assert ok and "avviato" in why
+
+
 # --- sign_release.py tool <-> agent verify roundtrip ---
 
 def test_sign_release_tool_roundtrip(tmp_path, capsys):

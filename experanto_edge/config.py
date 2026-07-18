@@ -50,6 +50,14 @@ class Config:
     interval: int = 300                  # seconds between cycles (= worker poll rate)
     connect_timeout: int = 20
     command_wait: float = 3.0            # seconds to wait for a retained command per cycle
+    # Connessione MQTT PERSISTENTE: quando True l'agente resta connesso al broker e
+    # riceve i comandi ISTANTANEAMENTE (on_message -> coda -> loop principale, stesso
+    # thread: nessuna concorrenza sul datalogger), mentre la telemetria resta sul
+    # timer `interval`. Serve allo storico on-demand (il server aspetta ~22s la curva
+    # 143). Default False = modello intermittente storico (connect/pubblica/disconnetti
+    # a ogni ciclo, comando letto una-tantum): abilitare SOLO dopo validazione in
+    # staging (consumo/reconnect/24h). WireGuard resta indipendente (verso il broker).
+    persistent_commands: bool = False
     buffer_path: str = "/var/lib/experanto-edge/buffer.db"
     buffer_max_rows: int = 5000
     log_level: str = "INFO"

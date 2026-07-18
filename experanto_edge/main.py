@@ -4,6 +4,10 @@ Each cycle (every `interval` seconds): read the local datalogger, connect to the
 flush any buffered readings, publish telemetry + status, pick up one retained command,
 ack it, and disconnect. No permanent connection is held — offline is detected server-side
 from stale telemetry, exactly like any other plant.
+
+Con `persistent_commands=True` (opt-in) l'agente tiene invece una connessione MQTT
+persistente: i comandi arrivano istantaneamente (necessario allo storico on-demand, che
+il server aspetta ~22s), la telemetria resta sul timer `interval`. Vedi `_run_persistent`.
 """
 from __future__ import annotations
 
@@ -110,6 +114,45 @@ class Agent:
             self.cfg.save()
             log.info("finestra SSH scaduta — tunnel chiuso")
 
+    def fetch_history(self, args: dict, cmd: dict):
+        """On-demand: curva per-inverter STORICA -> chunk `up/history` (uno per device).
+
+        Thin-relay: il reader forwarda il RAW (143:100 + 860), il server ricostruisce
+        la curva potenza. UN device per chunk (curva ~90KB, cap gateway 256KB -> mai
+        bundlare >=2); il 860 (piccolo, statico) va in ogni chunk cosi' il server
+        parsa ciascuno stateless. La correlazione e' via `command_id` (l'ack resta
+        piccolo, il payload NON ci va). `args`: {date, daysback}. Brand-agnostico:
+        richiede solo che il reader esponga `fetch_history_curves`."""
+        fetch = getattr(self.reader, "fetch_history_curves", None)
+        if not callable(fetch):
+            return False, f"reader {self.cfg.reader_type} senza storico on-demand"
+        try:
+            daysback = int(args.get("daysback"))
+        except (TypeError, ValueError):
+            return False, "daysback mancante/non valido"
+        if daysback < 0:
+            return False, "daysback negativo"
+        date = str(args.get("date") or "")
+        command_id = cmd.get("command_id")
+        res = fetch(daysback) or {}
+        ch860 = res.get("ch860")
+        curves = res.get("curves") or {}
+        total = len(curves)
+        sent = 0
+        for idx, node in curves.items():
+            payload = {
+                "schema": "experanto.edge.history/1",
+                "device_code": self.cfg.device_code,
+                "command_id": command_id,
+                "device_idx": int(idx),
+                "date": date,
+                "total_devices": total,
+                "raw": {"143": {str(idx): {"100": {str(daysback): node}}}, "860": ch860},
+            }
+            if self.transport.publish(self.cfg.topic("up/history"), payload):
+                sent += 1
+        return True, json.dumps({"done": True, "n_devices": total, "sent": sent})
+
     def diagnostics(self) -> dict:
         return {
             "agent_version": __version__,
@@ -160,8 +203,11 @@ class Agent:
         }
 
     # --- cycle ---
-    def run_cycle(self) -> None:
-        self._enforce_ssh_window()
+    def _read_telemetry(self):
+        """Legge il datalogger -> (telemetry|None, error).
+
+        Un errore del reader NON alza: la telemetria resta None e lo status riporta
+        l'errore. Condiviso dal ciclo intermittente e da quello persistente."""
         error = ""
         telemetry = None
         try:
@@ -173,7 +219,11 @@ class Agent:
         except ReaderError as e:
             error = str(e)
             log.warning("lettura datalogger fallita: %s", e)
+        return telemetry, error
 
+    def run_cycle(self) -> None:
+        self._enforce_ssh_window()
+        telemetry, error = self._read_telemetry()
         try:
             self.transport.connect()
         except TransportError as e:
@@ -217,10 +267,20 @@ class Agent:
         signal.signal(signal.SIGTERM, lambda *_: (self._stop.set(), self._wake.set()))
         signal.signal(signal.SIGINT, lambda *_: (self._stop.set(), self._wake.set()))
         log.info(
-            "avvio agente %s device=%s interval=%ss",
+            "avvio agente %s device=%s interval=%ss%s",
             __version__, self.cfg.device_code, self.cfg.interval,
+            " [persistent]" if self.cfg.persistent_commands else "",
         )
         update.write_health_marker(self.cfg)  # signal "process is up" ASAP (OTA rollback watches it)
+        if self.cfg.persistent_commands:
+            self._run_persistent()
+        else:
+            self._run_intermittent()
+        log.info("arresto agente")
+
+    def _run_intermittent(self) -> None:
+        """Modello storico (default): ogni `interval` connette, pubblica, legge UN
+        comando, disconnette. Latenza comando fino a `interval`. Path provato."""
         while not self._stop.is_set():
             start = time.time()
             try:
@@ -230,7 +290,62 @@ class Agent:
             update.write_health_marker(self.cfg)
             self._wake.clear()
             self._wake.wait(max(0.0, self.cfg.interval - (time.time() - start)))
-        log.info("arresto agente")
+
+    def _run_persistent(self) -> None:
+        """Connessione persistente: comandi ISTANTANEI (coda inbound drenata nel thread
+        principale — nessuna concorrenza sul datalogger), telemetria sul timer
+        `interval`. paho riconnette da solo; se la connessione iniziale fallisce
+        bufferizziamo e ritentiamo. WireGuard resta indipendente (verso il broker)."""
+        try:
+            self.transport.connect(persistent=True)
+            self.transport.subscribe(self.cfg.topic("dn/cmd"))
+        except TransportError as e:
+            log.warning("connessione persistente iniziale fallita: %s (ritento)", e)
+        next_telemetry = 0.0
+        while not self._stop.is_set():
+            if time.time() >= next_telemetry:
+                try:
+                    self._publish_persistent()
+                except Exception:
+                    log.exception("errore nel ciclo telemetria")
+                update.write_health_marker(self.cfg)
+                next_telemetry = time.time() + self.cfg.interval
+            # Attesa comando: cap a 5s per rivalutare _stop (shutdown rapido) e il timer;
+            # un comando in coda torna SUBITO (queue.get non aspetta il cap).
+            wait = max(0.1, min(next_telemetry - time.time(), 5.0))
+            cmd = self.transport.next_command(wait)
+            if cmd:
+                self._dispatch_persistent(cmd)
+                if self._wake.is_set():          # read_now/rediscover -> lettura immediata
+                    self._wake.clear()
+                    next_telemetry = 0.0
+        self.transport.disconnect()
+
+    def _publish_persistent(self) -> None:
+        """Legge + pubblica telemetria/status sulla connessione persistente (niente
+        connect/disconnect per ciclo). Broker giu' (paho in reconnect) -> bufferizza."""
+        self._enforce_ssh_window()
+        telemetry, error = self._read_telemetry()
+        if not self.transport.connected():
+            if telemetry:
+                self.buffer.append(self.cfg.topic("up/telemetry"), telemetry)
+            return
+        self._flush_buffer()
+        if telemetry and not self.transport.publish(self.cfg.topic("up/telemetry"), telemetry):
+            self.buffer.append(self.cfg.topic("up/telemetry"), telemetry)
+        self.transport.publish(self.cfg.topic("up/status"), self._status(error))
+
+    def _dispatch_persistent(self, cmd: dict) -> None:
+        """Esegue un comando arrivato via on_message (dedup per command_id, poi ack)."""
+        cid = cmd.get("command_id")
+        if cid and cid == self.cfg.last_command_id:
+            return  # gia' gestito (il retained persiste finche' non ripulito)
+        ok, detail = self.dispatcher.handle(cmd)
+        if self.transport.connected():
+            self.transport.publish(self.cfg.topic("up/ack"), self._ack(cmd, ok, detail))
+        if cid:
+            self.cfg.last_command_id = cid
+            self.cfg.save()
 
 
 def main(argv=None) -> int:

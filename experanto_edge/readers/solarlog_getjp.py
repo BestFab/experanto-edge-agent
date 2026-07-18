@@ -79,6 +79,15 @@ def _detail_query(dev: str) -> Dict[str, Any]:
     return {"143": {str(dev): {"101": {"0": None}}}}
 
 
+def _curve_query(dev: str, daysback: int) -> Dict[str, Any]:
+    """getjp per la CURVA del giorno (143 blocco 100, 288 punti/5min) dell'inverter
+    `dev`, `daysback` giorni fa (0=oggi, 1=ieri...). Diverso da `_detail_query`
+    (blocco 101 = valori correnti). L'indice device e' la PRIMA sotto-chiave dopo
+    143. Usato dallo storico on-demand: il reader forwarda il nodo grezzo, il server
+    ricostruisce la curva potenza (Pac) dal 143+860."""
+    return {"143": {str(dev): {"100": {str(int(daysback)): None}}}}
+
+
 def _real_inverter_indices(serials: Any, dev_map: Any) -> List[str]:
     """Indici degli inverter REALI su cui interrogare il 143.
 
@@ -146,6 +155,15 @@ class SolarlogGetjpReader(Reader):
         # Backoff sul dettaglio non disponibile (ne' open ne' via login): non ritentare
         # 143 su tutti gli inverter a ogni ciclo se il datalogger non lo espone.
         self._detail_retry_after = 0.0
+        # Indici degli inverter reali dell'ultima lettura: scaldati dal ciclo
+        # telemetria (col dettaglio attivo) e riusati dallo storico on-demand per
+        # risparmiare il fetch 782/740 (piccola ottimizzazione, non necessaria).
+        self._last_indices: List[str] = []
+        # Pausa fra query nello storico on-demand. 0 = a raffica: il datalogger
+        # LOCALE non ha rate limit (misurato su Growatt MAX/.57: 9 curve intere a
+        # spacing 0 -> 4.7s, zero 503). Diversa da `self.spacing` (1.5s), che serve
+        # solo al ciclo telemetria dove la latenza non conta.
+        self.history_spacing: float = 0.0
 
     # ---- POST getjp (open oppure privilegiato con sessione + header CSRF) ----
 
@@ -236,16 +254,19 @@ class SolarlogGetjpReader(Reader):
 
     # ---- Config-canali 860 (epoch corrente) ----
 
-    def _fetch_channels_860(self) -> Optional[Dict[str, Any]]:
+    def _fetch_channels_860(self, spacing: Optional[float] = None) -> Optional[Dict[str, Any]]:
         """860 dell'epoch CORRENTE = ``{"<idx>": epoch}`` con l'indice piu' alto.
 
         Sonda gli indici epoch 0,1,2,... (860 INDICIZZATO: la forma bare 500-a) e
         tiene l'ultima valida = layout config attuale. best-effort (header CSRF su
-        DL aperto, sessione se protetto). None se nessuna epoch risponde.
-        """
+        DL aperto, sessione se protetto). None se nessuna epoch risponde. ``spacing``
+        override della pausa fra query (lo storico on-demand passa 0: il DL locale non
+        ha rate limit, misurato); None = usa quella del ciclo telemetria."""
+        sp = self.spacing if spacing is None else spacing
         latest: Optional[Dict[str, Any]] = None
         for i in range(_MAX_EPOCHS):
-            time.sleep(self.spacing)
+            if sp:
+                time.sleep(sp)
             resp = self._getjp_priv_optional(_epoch_query(i))
             epoch = resp.get("860", {}).get(str(i)) if isinstance(resp, dict) else None
             if not (isinstance(epoch, list) and len(epoch) >= 2):
@@ -271,6 +292,47 @@ class SolarlogGetjpReader(Reader):
             if isinstance(node, list) and len(node) >= 2 and isinstance(node[1], list):
                 detail[str(idx)] = node
         return {"143": detail} if detail else {}
+
+    # ---- Storico on-demand: curva per-inverter del giorno (143 blocco 100) ----
+
+    def fetch_history_curves(self, daysback: int) -> Dict[str, Any]:
+        """RAW per la curva STORICA per-inverter di `daysback` giorni fa.
+
+        Thin-relay: forwarda i blocchi grezzi (nessun parsing qui). Ritorna
+        ``{"ch860": <860 epoch corrente>, "curves": {idx: <nodo 143:100:daysback>}}``.
+        Interroga il datalogger a raffica (``history_spacing`` = 0): quello LOCALE non
+        ha rate limit — misurato ~5s per 9 curve intere, ~0.6s/curva. Riusa gli indici
+        e il 860 gia' in cache dal ciclo telemetria come ottimizzazione (evita 782/740
+        e il probe epoch), non e' un requisito. Best-effort per device (un inverter
+        che non risponde non blocca gli altri)."""
+        self._ensure_session()   # login solo se c'e' password (no-op su DL aperto)
+        sp = self.history_spacing
+        indices = self._last_indices
+        if not indices:
+            devices = self._getjp_optional(QUERY_DEVICES)
+            if sp:
+                time.sleep(sp)
+            serials = self._getjp_optional(QUERY_SERIALS)
+            dev_map = devices.get("782") if isinstance(devices, dict) else None
+            indices = _real_inverter_indices(serials, dev_map)
+            self._last_indices = indices
+        ch860 = self._channels_860
+        if ch860 is None:
+            ch860 = self._fetch_channels_860(spacing=sp)
+            if ch860:
+                self._channels_860 = ch860
+                self._last_860 = time.time()
+        curves: Dict[str, Any] = {}
+        for idx in indices:
+            resp = self._getjp_priv_optional(_curve_query(idx, daysback))
+            node = None
+            if isinstance(resp, dict):
+                node = resp.get("143", {}).get(str(idx), {}).get("100", {}).get(str(daysback))
+            if node is not None:
+                curves[str(idx)] = node
+            if sp:
+                time.sleep(sp)
+        return {"ch860": ch860, "curves": curves}
 
     # ---- Ciclo di lettura ----
 
@@ -309,6 +371,7 @@ class SolarlogGetjpReader(Reader):
         if (self.collect_detail and isinstance(devices, dict)
                 and time.monotonic() >= self._detail_retry_after):
             indices = _real_inverter_indices(serials, devices.get("782"))
+            self._last_indices = indices   # scalda gli indici per lo storico on-demand
             if indices:
                 self._ensure_session()    # login solo se c'e' password (no-op altrimenti)
                 if self._channels_860 is None or (now - self._last_860 >= self.history_interval):

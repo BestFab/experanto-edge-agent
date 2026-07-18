@@ -35,6 +35,18 @@ class Transport(abc.ABC):
     @abc.abstractmethod
     def get_retained_command(self, topic: str, timeout: float = 3.0) -> Optional[Dict[str, Any]]: ...
 
+    # --- estensione connessione persistente (usata solo dal loop persistent_commands) ---
+    def connected(self) -> bool:
+        """True se il client e' connesso al broker (per decidere se pubblicare o bufferizzare)."""
+        return True
+
+    def subscribe(self, topic: str) -> None:
+        """Sottoscrive un topic in modo persistente (ri-sottoscritto a ogni reconnect)."""
+
+    def next_command(self, timeout: float) -> Optional[Dict[str, Any]]:
+        """Prossimo comando dalla coda inbound entro `timeout` s, o None (non ri-sottoscrive)."""
+        return None
+
 
 class MqttTransport(Transport):
     def __init__(self, config):
@@ -42,8 +54,16 @@ class MqttTransport(Transport):
         self._client = None
         self._connected = threading.Event()
         self._inbox: "queue.Queue" = queue.Queue()
+        self._subs: set = set()          # topic ri-sottoscritti a ogni (re)connect
 
-    def connect(self) -> None:
+    def _on_connect(self, client, userdata, flags, rc, *_):
+        # Ri-sottoscrive i topic persistenti: con clean_session=True le subscribe si
+        # perdono a ogni reconnect, quindi vanno riapplicate qui (non una-tantum).
+        self._connected.set()
+        for topic in self._subs:
+            client.subscribe(topic, qos=1)
+
+    def connect(self, persistent: bool = False) -> None:
         import paho.mqtt.client as mqtt  # lazy: keep import cost off the test path
 
         self._connected.clear()
@@ -57,10 +77,15 @@ class MqttTransport(Transport):
             )
             if self.cfg.tls_insecure:
                 c.tls_insecure_set(True)
-        c.on_connect = lambda *_: self._connected.set()
+        c.on_connect = self._on_connect
         c.on_message = lambda _c, _u, msg: self._inbox.put(msg)
+        if persistent:
+            # Reconnect automatico con backoff: la connessione dati resta su; se cade,
+            # paho riconnette e _on_connect ri-sottoscrive. Indipendente da WireGuard.
+            c.on_disconnect = lambda *_: self._connected.clear()
+            c.reconnect_delay_set(min_delay=1, max_delay=min(120, max(30, self.cfg.interval)))
         # Socket-level failures (ConnectionRefused, DNS, timeout, TLS) all subclass OSError;
-        # normalise them to TransportError so run_cycle() can buffer instead of crashing.
+        # normalise them to TransportError so the caller can buffer instead of crashing.
         try:
             c.connect(self.cfg.broker_host, self.cfg.broker_port, keepalive=max(30, self.cfg.interval))
             c.loop_start()
@@ -102,6 +127,27 @@ class MqttTransport(Transport):
             return None
         if not msg.payload:
             return None  # empty retained = command cleared
+        try:
+            return json.loads(msg.payload)
+        except ValueError:
+            return None
+
+    # --- connessione persistente ---
+    def connected(self) -> bool:
+        return self._client is not None and self._connected.is_set()
+
+    def subscribe(self, topic: str) -> None:
+        self._subs.add(topic)
+        if self._client is not None and self._connected.is_set():
+            self._client.subscribe(topic, qos=1)
+
+    def next_command(self, timeout: float) -> Optional[Dict[str, Any]]:
+        try:
+            msg = self._inbox.get(timeout=timeout)
+        except queue.Empty:
+            return None
+        if not msg.payload:
+            return None  # retained vuoto = comando gia' ripulito
         try:
             return json.loads(msg.payload)
         except ValueError:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, Tuple
 
-Handler = Callable[[Dict[str, Any]], Tuple[bool, str]]
+Handler = Callable[..., Tuple[bool, str]]   # (args[, cmd]) -> (ok, detail)
 
 
 class CommandDispatcher:
@@ -26,6 +26,7 @@ class CommandDispatcher:
             "update_system": self._update_system,
             "open_ssh": self._open_ssh,
             "close_ssh": self._close_ssh,
+            "fetch_history": self._fetch_history,
         }
 
     def handle(self, cmd: Dict[str, Any]) -> Tuple[bool, str]:
@@ -34,16 +35,18 @@ class CommandDispatcher:
         if handler is None:
             return False, f"comando sconosciuto: {name}"
         try:
-            return handler(cmd.get("args") or {})
+            # `cmd` passato oltre agli args: fetch_history ha bisogno del command_id
+            # per correlare i chunk up/history (gli altri handler lo ignorano).
+            return handler(cmd.get("args") or {}, cmd)
         except Exception as e:  # a bad command must never kill the loop
             return False, f"errore {name}: {e}"
 
     # --- handlers ---
-    def _read_now(self, args):
+    def _read_now(self, args, cmd=None):
         self.agent.request_immediate_read()
         return True, "lettura immediata programmata"
 
-    def _set_interval(self, args):
+    def _set_interval(self, args, cmd=None):
         val = int(args.get("interval", 0))
         if not (30 <= val <= 86400):
             return False, "interval fuori range [30, 86400]"
@@ -51,29 +54,34 @@ class CommandDispatcher:
         self.agent.cfg.save()
         return True, f"interval={val}"
 
-    def _rediscover(self, args):
+    def _rediscover(self, args, cmd=None):
         self.agent.request_discovery()
         return True, "discovery programmata al prossimo ciclo"
 
-    def _get_diag(self, args):
+    def _get_diag(self, args, cmd=None):
         return True, json.dumps(self.agent.diagnostics())
 
-    def _restart(self, args):
+    def _restart(self, args, cmd=None):
         return self.agent.restart_service()
 
-    def _reboot(self, args):
+    def _reboot(self, args, cmd=None):
         return self.agent.reboot_host()
 
-    def _update_agent(self, args):
+    def _update_agent(self, args, cmd=None):
         from . import update
         return update.update_agent(self.agent.cfg, args.get("version"))
 
-    def _update_system(self, args):
+    def _update_system(self, args, cmd=None):
         from . import update
         return update.update_system(self.agent.cfg, args.get("mode", "security"))
 
-    def _open_ssh(self, args):
+    def _open_ssh(self, args, cmd=None):
         return self.agent.open_ssh(args)
 
-    def _close_ssh(self, args):
+    def _close_ssh(self, args, cmd=None):
         return self.agent.close_ssh(args)
+
+    def _fetch_history(self, args, cmd=None):
+        # Storico on-demand: pubblica una curva per-inverter come chunk up/history
+        # (uno per device). Delega all'agente (ha transport + reader + device_code).
+        return self.agent.fetch_history(args, cmd or {})

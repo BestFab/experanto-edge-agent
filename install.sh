@@ -39,8 +39,13 @@ if [[ ! -f "$SRC_DIR/pyproject.toml" ]]; then
   exec bash "$TMP/install.sh" "$@"
 fi
 
+# helper puri per l'onboarding WG automatico (parsing/validazione risposta server).
+# shellcheck source=/dev/null
+[[ -f "$SRC_DIR/wg_provision.sh" ]] && source "$SRC_DIR/wg_provision.sh"
+
 CODE=""; SECRET=""; STATION=""; HOST_CODE=""; BROKER=""; DL_IP=""; UPD_URL=""; UPD_KEY=""
 WG_ENDPOINT=""; WG_HUB_PUBKEY=""; WG_ADDRESS=""; WG_SSH_USER=""; WG_PERSISTENT=""
+WG_AUTO=""; SERVER="${EXPERANTO_SERVER:-https://web.experanto.it}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --code) CODE="$2"; shift 2;;
@@ -56,6 +61,8 @@ while [[ $# -gt 0 ]]; do
     --wg-address) WG_ADDRESS="$2"; shift 2;;
     --wg-ssh-user) WG_SSH_USER="$2"; shift 2;;
     --wg-persistent) WG_PERSISTENT="1"; shift;;
+    --wg-auto) WG_AUTO="1"; shift;;
+    --server) SERVER="$2"; shift 2;;
     *) echo "arg sconosciuto: $1" >&2; exit 1;;
   esac
 done
@@ -124,10 +131,56 @@ if [[ -n "$DL_IP" ]]; then sed -i "s/^datalogger_ip:.*/datalogger_ip: \"$DL_IP\"
 # OTA config (delimitatore | perche' URL/base64 contengono /)
 if [[ -n "$UPD_URL" ]]; then sed -i "s|^update_base_url:.*|update_base_url: \"$UPD_URL\"|" "$CFG"; fi
 if [[ -n "$UPD_KEY" ]]; then sed -i "s|^update_public_key:.*|update_public_key: \"$UPD_KEY\"|" "$CFG"; fi
-# WireGuard verso il TUO hub (nessun servizio terzo). Genera keypair, scrive la config e
-# stampa la PUBBLICA del Pi da registrare come peer sull'hub. Opzionale.
+# WireGuard verso il TUO hub (nessun servizio terzo).
+#   --wg-auto : provisioning AUTOMATICO all'install (approccio A) — genera la keypair,
+#               chiede al server IP overlay + coordinate hub, scrive la conf, alza wg-quick@.
+#   --wg-endpoint ... : modalita' MANUALE (flag espliciti), fallback offline.
 WG_PUBKEY=""
-if [[ -n "$WG_ENDPOINT" ]]; then
+if [[ -n "$WG_AUTO" ]]; then
+  WG_IF="wg-experanto"; WG_CONF="/etc/wireguard/$WG_IF.conf"
+  # INVARIANTE lifeline: se l'interfaccia WG e' gia' istanziata (Pi vivo), NON la tocco.
+  if ip link show "$WG_IF" >/dev/null 2>&1; then
+    echo "==> $WG_IF gia' presente: NON la tocco (lifeline)"
+  else
+    command -v wgp_valid_pubkey >/dev/null 2>&1 || { echo "wg_provision.sh mancante accanto a install.sh" >&2; exit 1; }
+    echo "==> WireGuard AUTO: provisioning dal server $SERVER"
+    apt-get install -y -qq wireguard-tools curl ca-certificates
+    install -d -m 700 /etc/wireguard
+    # keypair: riusa quella esistente (re-run idempotente) o generane una nuova
+    if [[ -f "$WG_CONF" ]]; then WG_PRIV="$(awk -F' = ' '/^PrivateKey/{print $2}' "$WG_CONF")"
+    else WG_PRIV="$(wg genkey)"; fi
+    WG_PUB="$(printf '%s' "$WG_PRIV" | wg pubkey)"
+    # POST code+secret+pubkey. TLS VERIFICATO (mai -k): un MITM non deve poter
+    # dirottare il Pi su un hub ostile.
+    WG_BODY="$(printf '{"device_code":"%s","secret":"%s","wg_pubkey":"%s"}' "$CODE" "$SECRET" "$WG_PUB")"
+    RESP="$(curl -fsS --max-time 25 -X POST "$SERVER/api/edge/wg-provision" \
+             -H 'Content-Type: application/json' --data "$WG_BODY")" \
+      || { echo "provision WG fallito: server irraggiungibile o certificato non valido ($SERVER)" >&2; exit 1; }
+    if wgp_has_error "$RESP"; then
+      echo "provision WG rifiutato dal server: $(wgp_extract "$RESP" error)" >&2; exit 1
+    fi
+    WG_ADDRESS="$(wgp_extract "$RESP" wg_address)"
+    WG_HUB_PUBKEY="$(wgp_extract "$RESP" hub_pubkey)"
+    WG_ENDPOINT="$(wgp_extract "$RESP" hub_endpoint)"
+    # VALIDA prima di scrivere in /etc/wireguard (difesa MITM/malformato).
+    wgp_valid_address  "$WG_ADDRESS"    || { echo "wg_address non valido dal server: [$WG_ADDRESS]" >&2; exit 1; }
+    wgp_valid_pubkey   "$WG_HUB_PUBKEY" || { echo "hub_pubkey non valido dal server" >&2; exit 1; }
+    wgp_valid_endpoint "$WG_ENDPOINT"   || { echo "hub_endpoint non valido dal server: [$WG_ENDPOINT]" >&2; exit 1; }
+    ( umask 077; wgp_conf "$WG_PRIV" "$WG_ADDRESS" "$WG_HUB_PUBKEY" "$WG_ENDPOINT" > "$WG_CONF" )
+    chmod 600 "$WG_CONF"
+    sed -i "s|^wg_interface:.*|wg_interface: \"$WG_IF\"|" "$CFG"
+    sed -i "s|^wg_address:.*|wg_address: \"$WG_ADDRESS\"|" "$CFG"
+    [[ -n "$WG_SSH_USER" ]] && sed -i "s|^wg_ssh_user:.*|wg_ssh_user: \"$WG_SSH_USER\"|" "$CFG"
+    cat >/etc/sudoers.d/experanto-edge-wg <<EOF
+$SVC_USER ALL=(root) NOPASSWD: /usr/bin/wg-quick up $WG_IF, /usr/bin/wg-quick down $WG_IF
+EOF
+    chmod 440 /etc/sudoers.d/experanto-edge-wg
+    visudo -cf /etc/sudoers.d/experanto-edge-wg >/dev/null
+    # Onboarding = lifeline sempre su: wg-quick@ persistente (il peer e' gia' registrato).
+    systemctl enable --now "wg-quick@$WG_IF" || true
+    echo "==> WireGuard AUTO ok: $WG_ADDRESS via hub $WG_ENDPOINT (peer registrato dal server)"
+  fi
+elif [[ -n "$WG_ENDPOINT" ]]; then
   [[ -n "$WG_ADDRESS" && -n "$WG_HUB_PUBKEY" ]] || { echo "--wg-endpoint richiede --wg-address e --wg-hub-pubkey" >&2; exit 1; }
   echo "==> WireGuard (hub $WG_ENDPOINT, IP overlay $WG_ADDRESS)"
   apt-get install -y -qq wireguard-tools

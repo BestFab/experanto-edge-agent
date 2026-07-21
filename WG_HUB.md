@@ -38,6 +38,12 @@ sudo ufw allow 51820/udp    # se usi un firewall (o la porta scelta)
 ```
 
 ## 3. Aggiungere un Pi (per ogni datalogger)
+
+> **Automatizzato** (cantiere *WG onboarding*): con `install.sh --wg-auto` l'IP overlay e la
+> registrazione del peer avvengono **da soli** all'install — endpoint `POST /api/edge/wg-provision`
+> (alloca l'IP, `edge_devices.wg_pubkey/wg_address`) + **applier host** `tools/edge_wg_apply_peers.sh`
+> (add-only, anti-hijack) che fa `add-peer.sh` sull'hub. La procedura manuale sotto resta il **fallback**.
+
 1. Assegna un IP overlay **unico**: `10.8.0.5/32`, `10.8.0.6/32`, … (tieni un registro).
 2. Sul Pi: `install.sh … --wg-endpoint <hub_pubblico>:51820 --wg-hub-pubkey <hub.pub> --wg-address 10.8.0.5/32 [--wg-persistent] [--wg-ssh-user <utente_pi>]`.
 3. install.sh stampa la `PublicKey` del Pi → registrala sull'hub:

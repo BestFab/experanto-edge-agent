@@ -16,7 +16,7 @@ i dati accumulati quando la rete torna.
 - Raspberry Pi OS / Debian, accesso `sudo`, **internet in uscita** (nessuna porta in ingresso richiesta).
 - Il **datalogger Solar-Log Base** sulla stessa LAN, con **API getjp locale su "Open"** (impostazione lato cliente).
 - Credenziali del device dalla **SPA** → *Aggiungi datalogger remoto*: `device_code`, `secret` (mostrato **una sola volta**), `station_id`.
-- *(Opzionale)* una **authkey Tailscale** (reusable + ephemeral + tagged) per l'SSH remoto.
+- Per l'accesso remoto: `--wg-auto --server <api-url>` fa l'onboarding WireGuard **automatico** (IP overlay + registrazione peer sull'hub) all'install, senza passi manuali. Vedi §5.
 
 ---
 
@@ -37,7 +37,7 @@ sudo ./install.sh \
   --station <STATION_UUID> \
   --broker  mqtt.experanto.it \
   --datalogger-ip 192.168.1.50 \
-  --tailscale-authkey tskey-…          # opzionale: abilita l'SSH remoto
+  --wg-auto --server https://web.experanto.it   # onboarding WireGuard AUTOMATICO (IP overlay + peer)
   # OTA (opzionale): --update-base-url https://…/releases --update-pubkey <base64>
 ```
 
@@ -48,10 +48,12 @@ Se ometti `--code`/`--secret` te li chiede interattivamente. Flag:
 | `--code` | sì | device_code (anche username MQTT) |
 | `--secret` | sì | secret del device (password MQTT), mostrato una volta dalla SPA |
 | `--station` | consigliato | UUID della station Experanto che il Pi alimenta |
+| `--host-code` | no | device_code del Pi HOST su cui gira questa istanza (il proprio, sui self-host): finisce in up/status come self-report che il server incrocia col link operatore (mai un'autorità). `--host-code -` azzera un self-report stantio (es. datalogger spostato su un altro Pi) |
 | `--broker` | consigliato | host del broker (default `mqtt.experanto.it`) |
 | `--datalogger-ip` | no | IP del Solar-Log sulla LAN; se omesso, l'agente lo cerca da solo |
-| `--tailscale-authkey` | no | abilita l'SSH remoto on-demand (installa tailscale + operator mode) |
-| `--tailscale-login-server` | no | URL di un Headscale self-hosted (vuoto = Tailscale SaaS) |
+| `--wg-auto` | consigliato | onboarding WireGuard **automatico**: genera la keypair, chiede al server IP overlay + coordinate hub (TLS **verificato**), scrive la conf, alza `wg-quick@`. Zero passi manuali sull'hub. Se `wg-experanto` è già viva, NON la tocca (lifeline) |
+| `--server` | con `--wg-auto` | base URL dell'API per il provisioning WG (default `https://web.experanto.it`; anche via env `EXPERANTO_SERVER`) |
+| `--wg-endpoint`/`--wg-hub-pubkey`/`--wg-address` | no | modalità **manuale** (fallback offline): flag espliciti, poi registra la pubkey a mano sull'hub |
 | `--update-base-url` / `--update-pubkey` | no | abilita gli aggiornamenti OTA firmati dalla dashboard |
 
 L'installer (una volta): utente di sistema `experanto-edge`, venv in `/opt/experanto-edge`,
@@ -125,7 +127,12 @@ Il Pi è dietro NAT/CGNAT (niente porte in ingresso): si unisce al TUO **hub Wir
 (**nessun servizio terzo**, una porta UDP che coesiste con nginx/sshd) con un IP overlay fisso;
 lo raggiungi via SSH diretto a quell'IP. Setup dell'hub in **[WG_HUB.md](WG_HUB.md)**.
 
-**All'installazione:** `--wg-endpoint <hub>:51820 --wg-hub-pubkey <KEY> --wg-address 10.8.0.5/32`
+**Automatico (consigliato):** con `--wg-auto --server <api-url>` l'install genera la keypair, chiede
+IP overlay + coordinate hub al server (TLS **verificato**), scrive la conf e alza `wg-quick@`. La pubkey
+è registrata come peer **dal server** (endpoint `/api/edge/wg-provision` + applier host) — **nessuna
+azione manuale sull'hub**. Se `wg-experanto` è già viva, l'install non la tocca (lifeline).
+
+**Manuale (fallback offline):** `--wg-endpoint <hub>:51820 --wg-hub-pubkey <KEY> --wg-address 10.8.0.5/32`
 genera la keypair, scrive `/etc/wireguard/wg-experanto.conf` e stampa la **pubblica** del Pi da
 registrare come peer sull'hub. Aggiungi `--wg-persistent` per tenere il link **sempre su**
 (consigliato per il bring-up / quando il broker non c'è ancora).

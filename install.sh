@@ -171,6 +171,23 @@ if [[ -n "$WG_AUTO" ]]; then
     sed -i "s|^wg_interface:.*|wg_interface: \"$WG_IF\"|" "$CFG"
     sed -i "s|^wg_address:.*|wg_address: \"$WG_ADDRESS\"|" "$CFG"
     [[ -n "$WG_SSH_USER" ]] && sed -i "s|^wg_ssh_user:.*|wg_ssh_user: \"$WG_SSH_USER\"|" "$CFG"
+    # Chiave pubblica della console (ttyd/id_edge) -> authorized_keys dell'utente SSH,
+    # cosi' shell/SSH a chiave dalla console funziona subito. Utente = --wg-ssh-user oppure
+    # chi ha lanciato sudo (deve combaciare con l'utente SSH della console, di norma 'fabri').
+    CONSOLE_KEY="$(wgp_extract "$RESP" console_ssh_key)"
+    SSH_LOGIN_USER="${WG_SSH_USER:-${SUDO_USER:-}}"
+    if [[ -n "$CONSOLE_KEY" ]] && wgp_valid_ssh_key "$CONSOLE_KEY"; then
+      SSH_HOME="$(getent passwd "$SSH_LOGIN_USER" 2>/dev/null | cut -d: -f6)"
+      if [[ -n "$SSH_LOGIN_USER" && -n "$SSH_HOME" ]]; then
+        install -d -m 700 -o "$SSH_LOGIN_USER" -g "$SSH_LOGIN_USER" "$SSH_HOME/.ssh"
+        AK="$SSH_HOME/.ssh/authorized_keys"; touch "$AK"
+        grep -qF "$CONSOLE_KEY" "$AK" 2>/dev/null || printf '%s\n' "$CONSOLE_KEY" >> "$AK"
+        chown "$SSH_LOGIN_USER":"$SSH_LOGIN_USER" "$AK"; chmod 600 "$AK"
+        echo "==> chiave console -> authorized_keys di $SSH_LOGIN_USER (shell da console ok)"
+      else
+        echo "==> chiave console ricevuta ma utente SSH ignoto: passa --wg-ssh-user <utente>. authorized_keys NON aggiornato." >&2
+      fi
+    fi
     cat >/etc/sudoers.d/experanto-edge-wg <<EOF
 $SVC_USER ALL=(root) NOPASSWD: /usr/bin/wg-quick up $WG_IF, /usr/bin/wg-quick down $WG_IF
 EOF

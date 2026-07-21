@@ -40,6 +40,16 @@ wgp_valid_endpoint() {
   printf '%s' "$1" | grep -Eq '^[A-Za-z0-9.-]+:[0-9]{1,5}$'
 }
 
+# chiave pubblica SSH (per authorized_keys). Tipo noto + UNA SOLA riga: un newline
+# permetterebbe di iniettare entry aggiuntive nell'authorized_keys -> vietato.
+wgp_valid_ssh_key() {
+  case "$1" in
+    "ssh-ed25519 "*|"ssh-rsa "*|"ecdsa-sha2-nistp"*) ;;
+    *) return 1 ;;
+  esac
+  [ "$(printf '%s' "$1" | wc -l | tr -d ' ')" = "0" ]   # nessun newline (riga singola)
+}
+
 # wgp_conf <privkey> <address> <hub_pubkey> <endpoint> -> stampa la conf WireGuard.
 wgp_conf() {
   printf '[Interface]\nPrivateKey = %s\nAddress = %s\n\n[Peer]\nPublicKey = %s\nEndpoint = %s\nAllowedIPs = 10.8.0.0/24\nPersistentKeepalive = 25\n' \

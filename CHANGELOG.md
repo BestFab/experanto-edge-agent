@@ -6,6 +6,63 @@ A `!` marks a **breaking change** (behaviour or config default changed).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-07-22
+
+_Fase G «Allineamento worker»: comandabilità remota senza OTA + affidabilità dei publish._
+
+### Added
+- **`set_config` remote command** — changes a **whitelisted** subset of the config remotely:
+  `collect_inverter_detail`, `persistent_commands`, `interval`, `command_wait`, `log_level`.
+  Atomic type/range validation (one bad key rejects the whole command), persisted to the local
+  YAML (rolled back in RAM if the save fails), ack `detail` =
+  `{"applied": {...}, "restart_required": [...]}`. `collect_inverter_detail` and `log_level`
+  are applied live; `persistent_commands` takes effect after a `restart` command. **No
+  network/WireGuard/broker/identity/OTA/path key is remotely settable** (tripwire test). With
+  OTA gated by the systemd sandbox, this unblocks per-inverter detail and on-demand history
+  on the live fleet. See HOW_IT_WORKS §4 for the exact contract.
+- **`fetch_history_curves` is now part of the `Reader` contract** (`readers/base.py`), with a
+  default of `None` = "on-demand history not supported". The agent distinguishes that honest
+  declaration from an empty result: a conforming reader without an override acks
+  `ok=false "senza storico on-demand"` instead of a fake 0-device success.
+- **Critical publish retry** — acks and `up/history` chunks (which, unlike telemetry, have no
+  store-and-forward buffer) are published via a retry helper (3 attempts, `TransportError`
+  absorbed). `fetch_history` now reports its real outcome: lost chunks after retries make the
+  ack `ok=false` with `detail.done=false` (+ `sent`/`n_devices`), so the server can tell a
+  partial curve from a complete one.
+
+### Changed
+- **Datalogger autodiscovery is concurrent and time-bounded** — probes run in waves of 32
+  threads (an empty /24 takes ~3s) under a 20s budget, instead of a sequential 254×0.4s sweep
+  (up to ~100s blocking startup; with `Restart=always`+`RestartSec=10` a powered-off datalogger
+  caused scan/restart cycles). Deterministic like the old scan: the lowest responding host in
+  subnet order wins (matters with two dataloggers on one LAN, the real `.57`/`.59` case).
+- `Transport.connect()` (abstract) now declares the `persistent` flag its real implementation
+  already had, so fakes and future transports match the contract.
+
+### Fixed
+- **`read_now` was a no-op in the default (intermittent) mode** — the command's wake-up was
+  cleared right *after* `run_cycle()` had handled it, so the Pi acked "lettura immediata
+  programmata" and then slept the full interval anyway. The wake is now cleared *before* the
+  cycle; `read_now`/`rediscover` really do trigger an immediate next cycle. (The persistent
+  loop was already correct.)
+- The `fetch_history` ack `detail` JSON is serialized with sorted keys (deterministic).
+
+## [0.3.3] — 2026-07-18
+
+_Entry ricostruita: la 0.3.3 era stata rilasciata senza voce di changelog._
+
+### Added
+- **On-demand history curves** (`fetch_history` command) — the reader forwards the raw
+  per-inverter day curve (`143:100` + `860`) and the agent publishes one `up/history` chunk
+  per device, correlated by `command_id` (`experanto.edge.history/1`).
+- **Opt-in persistent MQTT connection** (`persistent_commands`, default **false**) — commands
+  are delivered instantly (needed by on-demand history: the server waits ~22s); telemetry
+  stays on the `interval` timer. The default intermittent path is unchanged.
+
+### Fixed
+- A command handler that raises (e.g. `cfg.save` `PermissionError`) no longer stops the
+  persistent loop.
+
 ## [0.3.2] — 2026-07-16
 
 _Fix: 143 device index is the FIRST sub-key, not the last._

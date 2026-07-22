@@ -65,15 +65,94 @@ exactly like any other plant. There's no heartbeat to keep alive.
 
 All under `experanto/{device_code}/`:
 
-| Topic | Direction | Payload (schema) |
-|---|---|---|
-| `up/telemetry` | Pi → server | `experanto.edge.telemetry/1` — the raw reading under `data` |
-| `up/status`    | Pi → server | `experanto.edge.status/1` — diagnostics + error + `ssh_open_until` |
-| `up/ack`       | Pi → server | `experanto.edge.ack/1` — result of a command |
-| `dn/cmd`       | server → Pi | one **retained** command, delivered on the next cycle |
+| Topic | Direction | Payload (schema) | Since |
+|---|---|---|---|
+| `up/telemetry` | Pi → server | `experanto.edge.telemetry/1` — the raw reading under `data` | 0.1.0 |
+| `up/status`    | Pi → server | `experanto.edge.status/1` — diagnostics + error + `ssh_open_until` | 0.1.0 |
+| `up/ack`       | Pi → server | `experanto.edge.ack/1` — result of a command | 0.1.0 |
+| `up/history`   | Pi → server | `experanto.edge.history/1` — one on-demand history chunk per inverter | 0.3.3 |
+| `dn/cmd`       | server → Pi | one **retained** command, delivered on the next cycle (instantly with `persistent_commands`) | 0.1.0 |
 
 Commands: `read_now`, `set_interval`, `rediscover`, `get_diag`, `restart`, `reboot`,
-`update_agent`, `update_system`, `open_ssh`, `close_ssh`.
+`update_agent`, `update_system`, `open_ssh`, `close_ssh` (all 0.1.0), `fetch_history` (0.3.3),
+`set_config` (0.4.0).
+
+### Payloads, field by field
+
+`experanto.edge.telemetry/1` — one per cycle:
+
+| Field | Type | Since | Meaning |
+|---|---|---|---|
+| `schema` | str | 0.1.0 | `experanto.edge.telemetry/1` |
+| `device_code` | str | 0.1.0 | device identity from enrollment (e.g. `EXP-9IBPTHUS`) |
+| `station_id` | str | 0.1.0 | Experanto station bound at enrollment (may be empty) |
+| `reader_type` | str | 0.1.0 | e.g. `solarlog_getjp` |
+| `agent_version` | str | 0.1.0 | agent SemVer |
+| `read_at` | int | 0.1.0 | epoch when the reader took the reading (device-side moment of the read) |
+| `data` | dict | 0.1.0 | raw reading, verbatim; for Solar-Log: `data.getjp.{801_170,782}` (0.1.0), `608`, `740`, throttled `877`/`878` (0.3.0), `860` + `143` when `collect_inverter_detail` is on (0.3.1) |
+| `data.discover` | dict | 0.1.0 | raw inventory — present only in the cycle after a `rediscover` |
+
+`experanto.edge.status/1` — one per cycle, even when the read failed:
+
+| Field | Type | Since | Meaning |
+|---|---|---|---|
+| `schema`, `device_code`, `station_id` | str | 0.1.0 | as above |
+| `agent_version`, `os_version`, `reader_type`, `datalogger_ip`, `interval` | — | 0.1.0 | diagnostics snapshot |
+| `buffered` | int | 0.1.0 | readings currently in the store-and-forward buffer |
+| `uptime_s` | int | 0.1.0 | seconds since process start |
+| `local_ips` | list | 0.1.0 | LAN IPs (SSH reach hint) |
+| `ssh_open_until` | int | 0.1.0 | epoch until which the on-demand SSH window is open (0 = closed) |
+| `at` | int | 0.1.0 | epoch of the status |
+| `error` | str | 0.1.0 | last read error, empty when the read succeeded |
+
+`experanto.edge.ack/1` — one per handled command:
+
+| Field | Type | Since | Meaning |
+|---|---|---|---|
+| `schema`, `device_code` | str | 0.1.0 | as above |
+| `command_id` | str | 0.1.0 | echoes the command's id (dedup + correlation) |
+| `cmd` | str | 0.1.0 | echoes the command name |
+| `ok` | bool | 0.1.0 | outcome |
+| `detail` | str | 0.1.0 | human/JSON detail; for `fetch_history` a JSON `{"done", "n_devices", "sent"}` (0.3.3; since 0.4.0 `ok=false` and `done=false` when chunks were lost even after retries); for `set_config` a JSON `{"applied", "restart_required"}` (0.4.0) |
+| `at` | int | 0.1.0 | epoch of the ack |
+
+`experanto.edge.history/1` — one chunk per inverter, in response to `fetch_history` (all 0.3.3):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `schema`, `device_code` | str | as above |
+| `command_id` | str | correlates the chunk to its `fetch_history` command |
+| `device_idx` | int | datalogger device slot this curve belongs to |
+| `date` | str | the `date` echoed from the command args |
+| `total_devices` | int | how many chunks the server should expect |
+| `raw` | dict | verbatim `{"143": {idx: {"100": {daysback: node}}}, "860": <epoch>}` — `860` repeated in every chunk so the server parses stateless |
+
+### `set_config` (0.4.0) — remote, whitelisted config changes
+
+With OTA gated on the live fleet (systemd sandbox), `set_config` is how the server flips the
+safe behaviour switches remotely. Command payload (retained on `dn/cmd`, like every command):
+
+```json
+{"command_id": "…", "cmd": "set_config",
+ "args": {"set": {"collect_inverter_detail": true, "persistent_commands": true}}}
+```
+
+Whitelist — anything else is rejected and **nothing** is changed:
+
+| Key | Type / range | Applied |
+|---|---|---|
+| `collect_inverter_detail` | bool | live (pushed into the running reader) |
+| `persistent_commands` | bool | **after `restart`** (the loop mode is chosen at start) |
+| `interval` | int 30–86400 | live (same rule as `set_interval`) |
+| `command_wait` | number 0.5–30 | live |
+| `log_level` | `DEBUG`/`INFO`/`WARNING`/`ERROR` | live |
+
+Validation is **atomic**: one unknown key or invalid value rejects the whole command. Applied
+values are persisted to the local YAML config (rolled back in RAM if the save fails, honest
+`ok=false` ack). The ack `detail` is `{"applied": {key: value}, "restart_required": [keys]}` —
+when `restart_required` is non-empty the server should follow up with a `restart` command
+(systemd brings the process back up with the saved config). **No network / WireGuard / broker /
+identity / OTA / path key is remotely settable** (tripwire test in `tests/test_set_config.py`).
 
 ## 5. The reader — thin relay
 
@@ -97,8 +176,15 @@ readers under `readers/` without touching transport, buffer, OTA, or the server 
 
 - **Store-and-forward** — offline readings go to SQLite (`buffer_path`, capped at `buffer_max_rows`)
   and flush in order on reconnect.
+- **Critical publish retry (0.4.0)** — acks and `up/history` chunks have no buffer, so they are
+  published with retries (3 attempts) and their **real outcome** is surfaced: lost history chunks
+  make the `fetch_history` ack `ok=false` instead of leaving the server with a silently partial
+  curve.
 - **No crash on a bad datalogger** — a read error is reported in status and retried next cycle.
 - **Anti-503 spacing** — deliberate delay between getjp queries.
+- **Bounded LAN discovery (0.4.0)** — datalogger autodiscovery probes the /24 concurrently in
+  waves under a time budget (~3s for an empty LAN, 20s hard cap) instead of a sequential ~100s
+  sweep blocking startup.
 - **`health_path`** is touched each cycle; the OTA rollback watches it.
 
 ## 7. Remote access — WireGuard (two independent modes)

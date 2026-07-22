@@ -78,11 +78,16 @@ Config lives at `/etc/experanto-edge/config.yaml` (see [`config.example.yaml`](c
 
 ## Remote commands & OTA
 
-Issued from Experanto, delivered on the next cycle:
+Issued from Experanto, delivered on the next cycle (instantly with `persistent_commands`):
 `read_now`, `set_interval`, `rediscover`, `get_diag`, `restart`, `reboot`,
-`update_agent`, `update_system`, `open_ssh`, `close_ssh`.
+`update_agent`, `update_system`, `open_ssh`, `close_ssh`, `fetch_history` (0.3.3),
+`set_config` (0.4.0).
 
 - `open_ssh`/`close_ssh` bring the WireGuard link up/down on demand for remote SSH.
+- `fetch_history` publishes the on-demand per-inverter history curve as `up/history` chunks.
+- `set_config` changes a **whitelisted** subset of the config remotely (see
+  [HOW_IT_WORKS.md](HOW_IT_WORKS.md) §4 for the exact contract). No network/WireGuard/identity/OTA
+  key can be set this way.
 - `update_agent` performs a **signed** OTA: the agent verifies the Ed25519 signature + sha256
   of a release, swaps it in atomically, health-checks, and **rolls back** on failure.
   Releases are produced with [`tools/sign_release.py`](tools/sign_release.py).

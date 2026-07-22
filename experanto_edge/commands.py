@@ -27,6 +27,7 @@ class CommandDispatcher:
             "open_ssh": self._open_ssh,
             "close_ssh": self._close_ssh,
             "fetch_history": self._fetch_history,
+            "set_config": self._set_config,
         }
 
     def handle(self, cmd: Dict[str, Any]) -> Tuple[bool, str]:
@@ -85,3 +86,9 @@ class CommandDispatcher:
         # Storico on-demand: pubblica una curva per-inverter come chunk up/history
         # (uno per device). Delega all'agente (ha transport + reader + device_code).
         return self.agent.fetch_history(args, cmd or {})
+
+    def _set_config(self, args, cmd=None):
+        # Modifica remota whitelist-ata della config ({"set": {chiave: valore}}):
+        # sblocca collect_inverter_detail / persistent_commands senza OTA.
+        # Whitelist, validazione e persistenza in Agent.set_config (main.py).
+        return self.agent.set_config(args)

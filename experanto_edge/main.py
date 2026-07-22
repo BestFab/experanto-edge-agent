@@ -39,6 +39,51 @@ READERS = {
 }
 
 
+# ---- set_config: whitelist delle chiavi modificabili da remoto ----
+# Con l'OTA bloccato dal sandbox systemd, `set_config` e' l'unico modo di girare
+# gli interruttori di comportamento senza mettere mano al Pi. La whitelist e'
+# ESPLICITA e contiene SOLO chiavi di comportamento: NESSUNA chiave di rete /
+# WireGuard / broker / identita' / OTA / percorsi e' modificabile da qui.
+
+def _cfg_bool(v):
+    if not isinstance(v, bool):
+        raise ValueError("atteso booleano (true/false)")
+    return v
+
+
+def _cfg_interval(v):
+    if isinstance(v, bool) or not isinstance(v, int):
+        raise ValueError("atteso intero")
+    if not (30 <= v <= 86400):
+        raise ValueError("fuori range [30, 86400]")
+    return v
+
+
+def _cfg_command_wait(v):
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        raise ValueError("atteso numero")
+    v = float(v)
+    if not (0.5 <= v <= 30.0):
+        raise ValueError("fuori range [0.5, 30.0]")
+    return v
+
+
+def _cfg_log_level(v):
+    if not isinstance(v, str) or v.upper() not in {"DEBUG", "INFO", "WARNING", "ERROR"}:
+        raise ValueError("atteso uno di DEBUG/INFO/WARNING/ERROR")
+    return v.upper()
+
+
+# chiave -> (validatore, True se serve un restart del processo perche' abbia effetto)
+SET_CONFIG_KEYS = {
+    "collect_inverter_detail": (_cfg_bool, False),  # applicata a caldo al reader
+    "persistent_commands": (_cfg_bool, True),       # letta solo in run_forever
+    "interval": (_cfg_interval, False),             # il loop la rilegge a ogni giro
+    "command_wait": (_cfg_command_wait, False),
+    "log_level": (_cfg_log_level, False),           # applicata a caldo al root logger
+}
+
+
 def build_reader(cfg: Config) -> Reader:
     factory = READERS.get(cfg.reader_type)
     if factory is None:
@@ -120,6 +165,53 @@ class Agent:
             self.cfg.ssh_open_until = 0
             self.cfg.save()
             log.info("finestra SSH scaduta — tunnel chiuso")
+
+    def set_config(self, args: dict):
+        """Comando `set_config`: modifica remota di un sottoinsieme SICURO della
+        config (whitelist SET_CONFIG_KEYS). Payload: {"set": {chiave: valore}}.
+
+        Validazione ATOMICA (una chiave sconosciuta o un valore invalido rifiutano
+        l'intero comando, nessuna modifica), persistenza sulla config locale (con
+        rollback in RAM se il save fallisce), ack col nuovo valore applicato e con
+        le chiavi che richiedono un `restart` per avere effetto."""
+        changes = args.get("set")
+        if not isinstance(changes, dict) or not changes:
+            return False, 'payload non valido: atteso {"set": {chiave: valore}}'
+        validated = {}
+        for key, value in changes.items():
+            entry = SET_CONFIG_KEYS.get(key)
+            if entry is None:
+                return False, f"chiave non modificabile da remoto: {key}"
+            try:
+                validated[key] = entry[0](value)
+            except ValueError as e:
+                return False, f"valore non valido per {key}: {e}"
+        old = {k: getattr(self.cfg, k) for k in validated}
+        for k, v in validated.items():
+            setattr(self.cfg, k, v)
+        try:
+            self.cfg.save()
+        except OSError as e:
+            for k, v in old.items():   # niente stato meta' applicato/meta' no
+                setattr(self.cfg, k, v)
+            return False, f"persistenza config fallita: {e}"
+        self._apply_config_live(validated)
+        restart_required = sorted(k for k in validated if SET_CONFIG_KEYS[k][1])
+        log.info("set_config applicata: %s (restart richiesto: %s)",
+                 validated, restart_required or "no")
+        return True, json.dumps(
+            {"applied": validated, "restart_required": restart_required}, sort_keys=True
+        )
+
+    def _apply_config_live(self, applied: dict) -> None:
+        """Propaga a caldo le chiavi che il processo legge solo all'avvio (il
+        resto e' riletto dal loop a ogni giro). `persistent_commands` cambia il
+        MODO del loop: ha effetto solo dopo un comando `restart` (systemd rilancia
+        il processo, che rilegge la config appena salvata)."""
+        if "collect_inverter_detail" in applied and hasattr(self.reader, "collect_detail"):
+            self.reader.collect_detail = applied["collect_inverter_detail"]
+        if "log_level" in applied:
+            logging.getLogger().setLevel(applied["log_level"])
 
     def fetch_history(self, args: dict, cmd: dict):
         """On-demand: curva per-inverter STORICA -> chunk `up/history` (uno per device).

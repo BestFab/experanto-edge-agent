@@ -221,7 +221,9 @@ class Agent:
         bundlare >=2); il 860 (piccolo, statico) va in ogni chunk cosi' il server
         parsa ciascuno stateless. La correlazione e' via `command_id` (l'ack resta
         piccolo, il payload NON ci va). `args`: {date, daysback}. Brand-agnostico:
-        richiede solo che il reader esponga `fetch_history_curves`."""
+        `fetch_history_curves` e' nel contratto Reader (da 0.4.0) col default None
+        = non supportato; qui si gestiscono sia il default sia un reader
+        duck-typed senza proprio il metodo."""
         fetch = getattr(self.reader, "fetch_history_curves", None)
         if not callable(fetch):
             return False, f"reader {self.cfg.reader_type} senza storico on-demand"
@@ -233,7 +235,9 @@ class Agent:
             return False, "daysback negativo"
         date = str(args.get("date") or "")
         command_id = cmd.get("command_id")
-        res = fetch(daysback) or {}
+        res = fetch(daysback)
+        if res is None:   # default del contratto: storico dichiarato non supportato
+            return False, f"reader {self.cfg.reader_type} senza storico on-demand"
         ch860 = res.get("ch860")
         curves = res.get("curves") or {}
         total = len(curves)

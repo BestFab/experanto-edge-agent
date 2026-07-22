@@ -10,7 +10,7 @@ loop a connessione persistente.
 from experanto_edge.buffer import Buffer
 from experanto_edge.config import Config
 from experanto_edge.main import Agent
-from experanto_edge.readers.base import ReaderError
+from experanto_edge.readers.base import Reader, ReaderError
 from experanto_edge.readers.solarlog_getjp import SolarlogGetjpReader
 
 DEV = {"782": {"0": {"101": 6000}, "1": {"101": 6345}}}
@@ -181,6 +181,28 @@ def test_fetch_history_unsupported_reader(tmp_path):
     agent = Agent(cfg, FakeReader(), FakeTransport(), Buffer(cfg.buffer_path))
     ok, _ = agent.fetch_history({"daysback": 1}, {})
     assert not ok                                          # reader senza storico -> onesto no
+
+
+def test_fetch_history_contract_default_declares_unsupported(tmp_path):
+    # fetch_history_curves e' NEL contratto Reader (da 0.4.0) con default None =
+    # non supportato: un reader conforme SENZA override deve produrre lo stesso
+    # "onesto no" di un reader senza il metodo — mai un finto successo a 0 device.
+    class MinimalReader(Reader):
+        reader_type = "minimal"
+
+        def read(self):
+            return {}
+
+        def discover(self):
+            return {}
+
+    assert Reader.fetch_history_curves is MinimalReader.fetch_history_curves
+    cfg = make_cfg(tmp_path)
+    t = FakeTransport()
+    agent = Agent(cfg, MinimalReader(), t, Buffer(cfg.buffer_path))
+    ok, detail = agent.fetch_history({"daysback": 1}, {})
+    assert not ok and "storico on-demand" in detail
+    assert not _hist(t, cfg)                               # nessun chunk pubblicato
 
 
 def test_fetch_history_bad_daysback(tmp_path):

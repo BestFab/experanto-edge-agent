@@ -10,7 +10,7 @@ interface — see the project plan. They are out of scope for phase E0.
 from __future__ import annotations
 
 import abc
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 class ReaderError(Exception):
@@ -27,3 +27,14 @@ class Reader(abc.ABC):
     @abc.abstractmethod
     def discover(self) -> Dict[str, Any]:
         """Return raw device/inverter inventory (verbatim) for server-side discovery."""
+
+    def fetch_history_curves(self, daysback: int) -> Optional[Dict[str, Any]]:
+        """On-demand history (the `fetch_history` command): raw per-inverter curve
+        of `daysback` days ago, as ``{"ch860": <block>, "curves": {idx: node}}``.
+
+        Nel contratto da 0.4.0: e' il metodo su cui poggia lo storico on-demand,
+        prima esisteva solo per duck-typing su SolarlogGetjpReader. Default:
+        ``None`` = storico NON supportato — l'agente acka un onesto "senza
+        storico on-demand" e non pubblica chunk. I reader che lo supportano fanno
+        override ritornando il dict (mai None)."""
+        return None

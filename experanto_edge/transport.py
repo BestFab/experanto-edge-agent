@@ -24,7 +24,11 @@ class TransportError(Exception):
 
 class Transport(abc.ABC):
     @abc.abstractmethod
-    def connect(self) -> None: ...
+    def connect(self, persistent: bool = False) -> None:
+        """Connette al broker. `persistent=True` (loop persistent_commands) abilita
+        il reconnect automatico lato client; il default e' la connessione per-ciclo.
+        Firma allineata all'implementazione reale (MqttTransport) cosi' i fake nei
+        test e i transport futuri non divergono dal contratto."""
 
     @abc.abstractmethod
     def disconnect(self) -> None: ...

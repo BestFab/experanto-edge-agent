@@ -57,6 +57,13 @@ def _discover_datalogger(cfg: Config) -> None:
 
 
 class Agent:
+    # Publish critici (ack, chunk history): tentativi e pausa fra un tentativo e
+    # l'altro. A differenza della telemetria (che ha il buffer store-and-forward),
+    # un ack o un chunk history perso NON e' recuperabile a valle: il server
+    # vedrebbe una curva parziale senza alcun segnale di errore.
+    PUBLISH_ATTEMPTS = 3
+    PUBLISH_RETRY_DELAY = 1.0
+
     def __init__(self, cfg: Config, reader: Reader, transport: Transport, buffer: Buffer):
         self.cfg = cfg
         self.reader = reader
@@ -149,9 +156,15 @@ class Agent:
                 "total_devices": total,
                 "raw": {"143": {str(idx): {"100": {str(daysback): node}}}, "860": ch860},
             }
-            if self.transport.publish(self.cfg.topic("up/history"), payload):
+            if self._publish_critical(self.cfg.topic("up/history"), payload):
                 sent += 1
-        return True, json.dumps({"done": True, "n_devices": total, "sent": sent})
+        detail = json.dumps({"done": sent == total, "n_devices": total, "sent": sent},
+                            sort_keys=True)
+        if sent < total:
+            # Chunk persi anche dopo i retry: l'ack lo dice (ok=False + done=False),
+            # cosi' il server non tratta una curva parziale come completa.
+            return False, detail
+        return True, detail
 
     def diagnostics(self) -> dict:
         return {
@@ -163,6 +176,26 @@ class Agent:
             "buffered": self.buffer.count(),
             "uptime_s": int(time.time()) - self._started,
         }
+
+    # --- publish affidabile ---
+    def _publish_critical(self, topic: str, payload: dict) -> bool:
+        """Publish con retry per i messaggi che non possono perdersi in silenzio
+        (ack e chunk history). La telemetria NON passa da qui: ha gia' il buffer
+        store-and-forward. Ritorna l'esito REALE dopo i tentativi, cosi' il
+        chiamante puo' riportarlo (fetch_history conta i chunk consegnati)."""
+        last_err = ""
+        for attempt in range(1, self.PUBLISH_ATTEMPTS + 1):
+            try:
+                if self.transport.publish(topic, payload):
+                    return True
+                last_err = "publish non confermato dal broker"
+            except TransportError as e:
+                last_err = str(e)
+            if attempt < self.PUBLISH_ATTEMPTS:
+                time.sleep(self.PUBLISH_RETRY_DELAY)
+        log.warning("publish critico su %s fallito dopo %s tentativi: %s",
+                    topic, self.PUBLISH_ATTEMPTS, last_err)
+        return False
 
     # --- payload builders ---
     def _telemetry(self, data: dict) -> dict:
@@ -258,7 +291,7 @@ class Agent:
         if cid and cid == self.cfg.last_command_id:
             return  # already handled (retained messages persist until cleared)
         ok, detail = self.dispatcher.handle(cmd)
-        self.transport.publish(self.cfg.topic("up/ack"), self._ack(cmd, ok, detail))
+        self._publish_critical(self.cfg.topic("up/ack"), self._ack(cmd, ok, detail))
         if cid:
             self.cfg.last_command_id = cid
             self.cfg.save()
@@ -350,8 +383,10 @@ class Agent:
         if cid and cid == self.cfg.last_command_id:
             return  # gia' gestito (il retained persiste finche' non ripulito)
         ok, detail = self.dispatcher.handle(cmd)
-        if self.transport.connected():
-            self.transport.publish(self.cfg.topic("up/ack"), self._ack(cmd, ok, detail))
+        # Niente guardia connected(): _publish_critical ritenta e assorbe un blip
+        # di connessione (paho riconnette da solo); se il broker resta giu' l'ack
+        # si perde come prima, ma loggato — mai in silenzio.
+        self._publish_critical(self.cfg.topic("up/ack"), self._ack(cmd, ok, detail))
         if cid:
             self.cfg.last_command_id = cid
             self.cfg.save()

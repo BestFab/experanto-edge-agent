@@ -280,15 +280,20 @@ class Agent:
 
     def _run_intermittent(self) -> None:
         """Modello storico (default): ogni `interval` connette, pubblica, legge UN
-        comando, disconnette. Latenza comando fino a `interval`. Path provato."""
+        comando, disconnette. Latenza comando fino a `interval`. Path provato.
+
+        Il clear del wake avviene PRIMA di run_cycle: un `read_now`/`rediscover`
+        gestito DENTRO il ciclo setta `_wake`, e la wait successiva ritorna subito
+        (ciclo anticipato). Con il clear DOPO run_cycle (bug <=0.3.3) il segnale
+        veniva mangiato: il comando era ackato ma non anticipava nulla."""
         while not self._stop.is_set():
             start = time.time()
+            self._wake.clear()
             try:
                 self.run_cycle()
             except Exception:
                 log.exception("errore nel ciclo")
             update.write_health_marker(self.cfg)
-            self._wake.clear()
             self._wake.wait(max(0.0, self.cfg.interval - (time.time() - start)))
 
     def _run_persistent(self) -> None:

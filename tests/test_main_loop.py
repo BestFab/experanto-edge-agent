@@ -1,3 +1,5 @@
+import threading
+
 from experanto_edge.buffer import Buffer
 from experanto_edge.config import Config
 from experanto_edge.main import Agent
@@ -114,6 +116,46 @@ def test_publish_failure_buffers(tmp_path):
     buf = Buffer(cfg.buffer_path)
     Agent(cfg, FakeReader(), FakeTransport(fail_publish=True), buf).run_cycle()
     assert buf.count() == 1
+
+
+class RecordingEvent(threading.Event):
+    """Event che registra is_set() all'atto della wait e non blocca mai (i test
+    non devono aspettare `interval` reale)."""
+
+    def __init__(self):
+        super().__init__()
+        self.waits = []
+
+    def wait(self, timeout=None):
+        self.waits.append(self.is_set())
+        return super().wait(0)
+
+
+def test_read_now_wakes_intermittent_loop(tmp_path):
+    """`read_now` nel modo DEFAULT (intermittente) deve anticipare il ciclo dopo:
+    il wake settato dal comando NON va cancellato dopo run_cycle (no-op <=0.3.3,
+    che ackava "lettura immediata programmata" senza anticipare nulla)."""
+    cfg = make_cfg(tmp_path)
+    t = FakeTransport(cmd={"command_id": "r1", "cmd": "read_now", "args": {}})
+    agent = Agent(cfg, FakeReader(), t, Buffer(cfg.buffer_path))
+    agent._wake = RecordingEvent()
+    cycles = []
+    orig = agent.run_cycle
+
+    def counted():
+        cycles.append(1)
+        orig()
+        if len(cycles) == 2:
+            agent.restart_service()   # stop pulito del loop (setta _stop e _wake)
+    agent.run_cycle = counted
+    agent._run_intermittent()
+    assert len(cycles) == 2
+    # subito dopo il ciclo che ha gestito read_now il wake e' ancora pending:
+    # la wait ritorna immediatamente -> lettura anticipata davvero.
+    assert agent._wake.waits[0] is True
+    # e il comando e' stato ackato una sola volta (dedup invariato)
+    acks = [p for p in t.published if p[0] == cfg.topic("up/ack")]
+    assert len(acks) == 1 and acks[0][1]["ok"] is True
 
 
 def test_reader_error_still_sends_status(tmp_path):

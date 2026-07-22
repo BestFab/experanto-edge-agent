@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+import time
+from concurrent import futures
 from typing import List, Optional
 
 import requests
@@ -54,15 +56,34 @@ def local_subnet() -> Optional[str]:
         return None
 
 
-def discover_datalogger(subnet: Optional[str] = None, port: int = 80) -> Optional[str]:
-    """Best-effort scan for a host answering the Solar-Log getjp API. Sequential and
-    slow (up to ~254 probes); prefer setting datalogger_ip manually when known."""
+def discover_datalogger(subnet: Optional[str] = None, port: int = 80,
+                        timeout: float = 0.4, budget: float = 20.0,
+                        workers: int = 32) -> Optional[str]:
+    """Best-effort scan for a host answering the Solar-Log getjp API.
+
+    Concorrente a ONDATE con budget di tempo: fino a 0.3.x la scansione era
+    sequenziale (254 host x 0.4s ~ 100s BLOCCANTI all'avvio; con Restart=always
+    + RestartSec=10 un datalogger spento innescava cicli scan/riavvio). Ora ogni
+    ondata sonda `workers` host in parallelo (una /24 vuota ~ 8 ondate ~ 3s) e
+    allo scadere di `budget` si ritorna None senza aspettare il giro completo.
+    Deterministico come la scansione storica: fra piu' host che rispondono vince
+    quello piu' basso nell'ordine di subnet (ondate in ordine; dentro l'ondata
+    si valuta in ordine) — conta con due datalogger sulla stessa LAN (.57/.59).
+    Prefer setting datalogger_ip manually when known."""
     net = subnet or local_subnet()
     if not net:
         return None
-    for host in ipaddress.ip_network(net).hosts():
-        if probe_getjp(str(host), port, timeout=0.4):
-            return str(host)
+    hosts = [str(h) for h in ipaddress.ip_network(net).hosts()]
+    deadline = time.monotonic() + budget
+    for i in range(0, len(hosts), workers):
+        if time.monotonic() >= deadline:
+            return None  # budget esaurito: meglio partire senza che bloccare il loop
+        wave = hosts[i:i + workers]
+        with futures.ThreadPoolExecutor(max_workers=len(wave)) as ex:
+            hits = list(ex.map(lambda h: probe_getjp(h, port, timeout), wave))
+        for host, hit in zip(wave, hits):
+            if hit:
+                return host
     return None
 
 

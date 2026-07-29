@@ -211,6 +211,41 @@ it. There are two modes, and **the choice is what keeps the data agent and conne
 releases/{version}`, **health-check**, and **roll back** automatically on failure. The agent never
 holds root itself. Releases are produced with `tools/sign_release.py`.
 
+### The privileged channel (0.4.1): sudo → helper broker
+
+The fleet's systemd unit sandboxes the agent with `NoNewPrivileges=true`, which denies **any**
+`sudo` — so the historical `sudo -n ota-helper.sh …` path is dead on provisioned Pis (proven live:
+remote `reboot` acked `ok=false "no new privileges flag is set"`). `_launch_helper` therefore tries
+two channels in order:
+
+1. **sudo** — works where the agent runs from a shell (dev, HW-test Pi); fails in <1s on the fleet.
+2. **broker** — the agent writes `{state}/helper.request` (`<epoch> <nonce> <action> [args]`, atomic
+   rename). The root **`experanto-edge-helper.path`** unit fires on the file's existence and runs
+   `helper-broker.sh`, which consumes the request, enforces the **action whitelist**
+   (`agent|system|reboot|ping`), an **anti-replay window** (±120 s), a **charset guard** on `nonce`
+   and `version`, and confines `artifact` to the state dir via `realpath`. It then launches the same
+   `ota-helper.sh` in a **transient `systemd-run` unit** (its own cgroup, no inherited timeout,
+   survives an agent restart) and answers on `{state}/helper.response` (`accepted` for long actions,
+   `done` for `ping`, `rejected` otherwise — always correlated by nonce). Because the helper runs
+   detached, the oneshot broker job finishes in <1 s, so the path-unit can re-trigger for the next
+   request and a long `apt`/`pip` can't be killed by the service's `TimeoutStartSec`. The **response
+   is written in a root-owned `RuntimeDirectory` (`/run/experanto-edge`)**, never in the
+   agent-writable state dir, so root can't be tricked into writing through a symlink the compromised
+   agent planted; a `helper.request` that is itself a symlink is dropped unread. The agent polls the
+   response for up to ~8 s; no response ⇒ "broker senza risposta" (and the orphan request is removed
+   so it can't replay at the next boot). The agent sandbox is never weakened; `_helper_dir`
+   (request) and `_helper_resp_dir` (response) are fixed paths matching the units, so a moved
+   `buffer_path` can't orphan the channel.
+
+A sibling root unit pair — **`wg-watchdog.timer`** → `wg-watchdog.sh` — self-heals the persistent
+WireGuard overlay: if `wg-quick@<iface>` is enabled and the newest peer handshake is >35 min old
+(or the interface vanished), it brings the tunnel back — `stop`+`wg-quick down`+`ip link del`+`start`,
+not a bare `restart` (which on an inactive unit would skip `ExecStop` and fail with "already
+exists"). A `hs==0` interface is treated as stale only after it has been up longer than the
+threshold, so a Pi whose peer isn't yet registered on the hub doesn't churn at boot. 30-min cooldown
+against flapping; `--check` prints the decision without acting. It's fully outside the agent: the
+"agent never touches the lifeline" rule (§7) still holds.
+
 ## 9. Module map
 
 | File | Responsibility |

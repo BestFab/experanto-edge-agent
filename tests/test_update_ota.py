@@ -103,6 +103,8 @@ def _cfg(tmp_path, pub, base="https://x/rel"):
         update_base_url=base,
         update_public_key=pub,
         buffer_path=str(tmp_path / "buffer.db"),
+        helper_dir=str(tmp_path),          # request + artifact staging
+        helper_resp_dir=str(tmp_path),     # response (root-owned in prod)
         ota_helper=str(tmp_path / "ota-helper.sh"),
         app_dir=str(tmp_path / "app"),
         health_path=str(tmp_path / "health"),
@@ -200,8 +202,10 @@ def test_reboot_launches_helper(monkeypatch, tmp_path):
     assert ok and calls == [("reboot",)]
 
 
-def test_launch_helper_missing_script_fails(tmp_path):
-    cfg = types.SimpleNamespace(ota_helper=str(tmp_path / "nope.sh"))
+def test_launch_helper_missing_script_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(update, "_BROKER_WAIT_S", 0.2)
+    cfg = types.SimpleNamespace(ota_helper=str(tmp_path / "nope.sh"),
+                                helper_dir=str(tmp_path), helper_resp_dir=str(tmp_path))
     ok, why = update._launch_helper(cfg, "reboot")
     assert not ok and "ota_helper" in why
 
@@ -210,15 +214,18 @@ def test_launch_helper_surfaces_immediate_denial(tmp_path, monkeypatch):
     # Regression: `sudo -n` can be denied AFTER the spawn (NoNewPrivileges / missing
     # sudoers) — the helper exits fast non-zero. That must be reported, NOT swallowed
     # as a successful OTA (the old bug: any Popen that didn't throw => "success").
+    # Senza broker installato il fallback scade e l'errore sudo resta visibile.
+    monkeypatch.setattr(update, "_BROKER_WAIT_S", 0.2)
     helper = tmp_path / "ota-helper.sh"; helper.write_text("#!/bin/sh\nexit 13\n")
-    cfg = types.SimpleNamespace(ota_helper=str(helper), buffer_path=str(tmp_path / "buf.db"))
+    cfg = types.SimpleNamespace(ota_helper=str(helper), helper_dir=str(tmp_path),
+                                helper_resp_dir=str(tmp_path))
 
     class FastFail:
         def wait(self, timeout=None):
             return 13                    # exits within the window with an error
     monkeypatch.setattr(update.subprocess, "Popen", lambda *a, **k: FastFail())
     ok, why = update._launch_helper(cfg, "agent", "0.3.0", "art")
-    assert not ok and "rc=13" in why
+    assert not ok and "rc=13" in why and "broker" in why
 
 
 def test_launch_helper_detaches_when_still_running(tmp_path, monkeypatch):
@@ -233,6 +240,94 @@ def test_launch_helper_detaches_when_still_running(tmp_path, monkeypatch):
     monkeypatch.setattr(update.subprocess, "Popen", lambda *a, **k: StillRunning())
     ok, why = update._launch_helper(cfg, "agent", "0.3.0", "art")
     assert ok and "avviato" in why
+
+
+# --- helper broker: canale privilegiato senza sudo (path-unit root) --------
+
+
+def _fake_broker(state_dir, status="accepted", rc="rc=0", detail="ok"):
+    """Thread che emula experanto-edge-helper: consuma helper.request e risponde
+    col NONCE della request (il contratto di correlazione del broker vero)."""
+    import os
+    import threading
+    import time as _time
+
+    def run():
+        req = os.path.join(str(state_dir), "helper.request")
+        resp = os.path.join(str(state_dir), "helper.response")
+        for _ in range(300):
+            if os.path.exists(req):
+                with open(req) as f:
+                    ts, nonce = f.readline().split()[:2]
+                os.unlink(req)
+                with open(resp + ".tmp", "w") as f:
+                    f.write(f"{ts} {nonce} {status} {rc} {detail}\n")
+                os.replace(resp + ".tmp", resp)
+                return
+            _time.sleep(0.005)
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    return t
+
+
+def _no_sudo(monkeypatch, tmp_path):
+    """sudo negato istantaneamente (il caso NoNewPrivileges della flotta)."""
+    helper = tmp_path / "ota-helper.sh"; helper.write_text("#!/bin/sh\nexit 1\n")
+
+    class Denied:
+        def wait(self, timeout=None):
+            return 1
+    monkeypatch.setattr(update.subprocess, "Popen", lambda *a, **k: Denied())
+    return types.SimpleNamespace(ota_helper=str(helper), helper_dir=str(tmp_path),
+                                 helper_resp_dir=str(tmp_path))
+
+
+def test_launch_helper_falls_back_to_broker(tmp_path, monkeypatch):
+    # sudo negato (NNP) ma broker attivo -> il comando riesce via request/response.
+    cfg = _no_sudo(monkeypatch, tmp_path)
+    _fake_broker(tmp_path, status="accepted", detail="reboot avviato")
+    ok, why = update._launch_helper(cfg, "reboot")
+    assert ok and "reboot avviato" in why
+
+
+def test_broker_rejected_is_surfaced(tmp_path, monkeypatch):
+    cfg = _no_sudo(monkeypatch, tmp_path)
+    _fake_broker(tmp_path, status="rejected", rc="rc=64", detail="azione non ammessa")
+    ok, why = update._launch_helper(cfg, "reboot")
+    assert not ok and "rejected" in why and "azione non ammessa" in why
+
+
+def test_broker_absent_times_out_and_cleans_request(tmp_path, monkeypatch):
+    import os
+    monkeypatch.setattr(update, "_BROKER_WAIT_S", 0.3)
+    cfg = _no_sudo(monkeypatch, tmp_path)
+    ok, why = update._launch_helper(cfg, "reboot")
+    assert not ok and "broker senza risposta" in why
+    # la request orfana NON deve restare sul disco (sarebbe un replay al prossimo boot)
+    assert not os.path.exists(tmp_path / "helper.request")
+
+
+def test_broker_ignores_stale_response_with_other_nonce(tmp_path, monkeypatch):
+    # Una response di un giro precedente (nonce diverso) non deve mai combaciare.
+    import os
+    monkeypatch.setattr(update, "_BROKER_WAIT_S", 0.3)
+    cfg = _no_sudo(monkeypatch, tmp_path)
+    ok, why = update._launch_via_broker(cfg, "ping")
+    assert not ok  # nessun broker: timeout
+    (tmp_path / "helper.response").write_text("0 nonce-vecchio done rc=0 pong\n")
+    ok, why = update._launch_via_broker(cfg, "ping")
+    assert not ok and "broker senza risposta" in why
+    assert not os.path.exists(tmp_path / "helper.request")
+
+
+def test_helper_dir_is_fixed_not_derived_from_buffer_path():
+    # La helper dir DEVE combaciare con la path-unit (hardcoded /var/lib/experanto-edge),
+    # indipendentemente da un buffer_path spostato — altrimenti il canale si orfana.
+    cfg = types.SimpleNamespace(buffer_path="/data/altrove/buffer.db")
+    assert update._helper_dir(cfg) == "/var/lib/experanto-edge"
+    cfg2 = types.SimpleNamespace(helper_dir="/custom/dir", buffer_path="/x/y.db")
+    assert update._helper_dir(cfg2) == "/custom/dir"
 
 
 # --- sign_release.py tool <-> agent verify roundtrip ---

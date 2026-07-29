@@ -42,6 +42,11 @@ _DOWNLOAD_TIMEOUT = 120
 # How long to watch the detached OTA helper before assuming it's underway. A real
 # install runs far longer; an immediate `sudo -n` denial exits well within this.
 _HELPER_LAUNCH_WINDOW_S = 4
+# Broker channel (root path-unit): how long to wait for helper.response before
+# concluding the broker isn't installed. The path unit fires on inotify, so a
+# working broker answers in well under a second.
+_BROKER_WAIT_S = 8.0
+_BROKER_POLL_S = 0.2
 
 
 # ---------------------------------------------------------------------------
@@ -167,9 +172,8 @@ def update_agent(cfg, version: Optional[str]) -> Tuple[bool, str]:
     if not base:
         return False, "update_base_url non configurata"
 
-    state_dir = os.path.dirname(getattr(cfg, "buffer_path", "") or
-                                "/var/lib/experanto-edge/buffer.db") or "/var/lib/experanto-edge"
-    artifact = os.path.join(state_dir, f"experanto-edge-{version}.tar.gz")
+    # Stage nella helper dir: il broker accetta solo artifact confinati li'.
+    artifact = os.path.join(_helper_dir(cfg), f"experanto-edge-{version}.tar.gz")
 
     try:
         manifest = _get_json(f"{base}/experanto-edge-{version}.json")
@@ -208,7 +212,96 @@ def reboot(cfg) -> Tuple[bool, str]:
     return True, "reboot avviato"
 
 
+def _helper_dir(cfg) -> str:
+    """Directory dei file del canale privilegiato (request/response) e dello
+    staging dell'artifact OTA.
+
+    DEVE combaciare con `PathExists=` di experanto-edge-helper.path (hardcoded
+    /var/lib/experanto-edge) e con lo STATE_DIR del broker. NON derivata da
+    `buffer_path`: un `buffer_path` spostato non deve orfanare il canale
+    (l'agente scriverebbe dove nessuna path-unit guarda). Override solo via
+    `cfg.helper_dir`, che i test usano; in produzione resta il default.
+    """
+    return getattr(cfg, "helper_dir", "") or "/var/lib/experanto-edge"
+
+
 def _launch_helper(cfg, *args: str) -> Tuple[bool, str]:
+    """Run a privileged helper action, trying the two channels in order:
+
+    1. `sudo -n ota-helper.sh …` — instantaneous where it works (agent run from a
+       shell, dev/test Pi). On the fleet the systemd sandbox (NoNewPrivileges)
+       denies it in well under a second.
+    2. broker — write {state}/helper.request; the root path-unit
+       (experanto-edge-helper.path) validates it and runs ota-helper.sh with the
+       sandbox intact. This is the fleet's normal path since 0.4.1.
+
+    Both failures are surfaced together so a misprovisioned Pi is diagnosable
+    from the ack alone.
+    """
+    ok, why = _launch_via_sudo(cfg, *args)
+    if ok:
+        return ok, why
+    b_ok, b_why = _launch_via_broker(cfg, *args)
+    if b_ok:
+        return b_ok, b_why
+    return False, f"{why}; {b_why}"
+
+
+def _helper_resp_dir(cfg) -> str:
+    """Dir della response del broker: ROOT-OWNED (default /run/experanto-edge,
+    RuntimeDirectory della helper unit). L'agente ci LEGGE soltanto; non deve
+    scriverci (e non potrebbe): e' proprio questo a togliere all'attaccante il
+    symlink-swap sui file di root. Distinta dalla helper dir (request), che
+    l'agente deve poter scrivere."""
+    return getattr(cfg, "helper_resp_dir", "") or "/run/experanto-edge"
+
+
+def _launch_via_broker(cfg, *args: str) -> Tuple[bool, str]:
+    """Privileged channel WITHOUT sudo: request/response files brokered by the
+    root path-unit. The broker answers `accepted` before long actions (same
+    detached contract as the sudo path) and `done` for instant ones (ping).
+
+    La request si scrive nella helper dir (agent-writable); la response si legge
+    dalla resp dir root-owned. Correlazione per nonce: una response di un giro
+    precedente (nonce diverso) non combacia mai.
+    """
+    req = os.path.join(_helper_dir(cfg), "helper.request")
+    resp = os.path.join(_helper_resp_dir(cfg), "helper.response")
+    nonce = "%x-%x" % (int(time.time() * 1000), os.getpid())
+    line = " ".join([str(int(time.time())), nonce, *args])
+    try:
+        tmp = req + ".tmp"
+        with open(tmp, "w") as f:
+            f.write(line + "\n")
+        os.replace(tmp, req)
+    except OSError as e:
+        return False, f"broker: request non scrivibile: {e}"
+    deadline = time.monotonic() + _BROKER_WAIT_S
+    while time.monotonic() < deadline:
+        try:
+            with open(resp) as f:
+                parts = f.readline().split(None, 4)
+        except OSError:
+            time.sleep(_BROKER_POLL_S)
+            continue
+        if len(parts) >= 4 and parts[1] == nonce:
+            _safe_unlink(resp)
+            status, rc = parts[2], parts[3]
+            detail = parts[4].strip() if len(parts) > 4 else ""
+            if status in ("accepted", "done") and rc == "rc=0":
+                return True, detail or f"{args[0]} avviato (broker)"
+            return False, f"broker: {status} {rc} {detail}".strip()
+        time.sleep(_BROKER_POLL_S)
+    # Nessuna response col nostro nonce entro la finestra. Due cause possibili:
+    # la path-unit non e' installata/attiva, OPPURE il broker e' occupato da
+    # un'azione precedente (con systemd-run il broker si libera in <1s, quindi
+    # e' raro). Rimuoviamo la request SOLO se e' ancora la nostra: se il broker
+    # l'ha gia' consumata (mv), non deve essere ricreata ne' l'esito confuso.
+    _safe_unlink(req)
+    return False, "broker senza risposta (path-unit assente o occupata)"
+
+
+def _launch_via_sudo(cfg, *args: str) -> Tuple[bool, str]:
     """Launch the root OTA helper detached (must survive the agent's own restart).
 
     The helper runs LONG (venv install + selfcheck + swap + service restart), so we
@@ -223,9 +316,7 @@ def _launch_helper(cfg, *args: str) -> Tuple[bool, str]:
     helper = getattr(cfg, "ota_helper", "") or ""
     if not helper or not os.path.exists(helper):
         return False, f"ota_helper non trovato: {helper or '(non configurato)'}"
-    state_dir = os.path.dirname(getattr(cfg, "buffer_path", "") or
-                                "/var/lib/experanto-edge/buffer.db") or "/var/lib/experanto-edge"
-    err_path = os.path.join(state_dir, ".ota-helper.err")
+    err_path = os.path.join(_helper_dir(cfg), ".ota-helper.err")
     cmd = ["sudo", "-n", helper, *args]
     errf: Any = subprocess.DEVNULL
     try:

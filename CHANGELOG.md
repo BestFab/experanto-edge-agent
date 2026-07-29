@@ -6,6 +6,56 @@ A `!` marks a **breaking change** (behaviour or config default changed).
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-07-28
+
+_Remote repair: il sandbox resta intatto, ma OTA/reboot tornano possibili e il tunnel WG si auto-ripara._
+
+### Added
+- **Helper broker (path-unit root)** — the fleet's systemd sandbox
+  (`NoNewPrivileges=true`) blocks `sudo -n ota-helper.sh`, which made `reboot`,
+  `update_agent` and `update_system` dead on arrival (proven live on the fleet:
+  ack `ok=false "no new privileges flag is set"`). The agent now falls back to a
+  file-brokered channel: it writes `{state}/helper.request`
+  (`<epoch> <nonce> <action> [args]`), the root `experanto-edge-helper.path`
+  unit triggers `helper-broker.sh`, which validates the request and launches
+  `ota-helper.sh` in a **transient `systemd-run` unit** (own cgroup, no inherited
+  timeout, survives an agent restart), answering on `{state}/helper.response`.
+  Channel order in `_launch_helper`: `sudo` first (instantaneous where it works),
+  broker on failure; both errors surfaced together in the ack. The agent sandbox
+  is UNCHANGED. Hardening from adversarial review:
+  - The response (and its temp) is written in a **root-owned dir**
+    (`/run/experanto-edge`, the unit's `RuntimeDirectory`), never in the
+    agent-owned state dir — so root never writes by-path where the sandboxed
+    user could unlink+symlink it (the old `mktemp`+`> "$tmp"` in the state dir
+    was still TOCTOU-swappable, and `chown` is gone entirely). The agent only
+    **reads** the response there.
+  - A `helper.request` that is itself a **symlink** (e.g. → `/etc/shadow`) is
+    detected after consumption and dropped unread, so root never leaks a
+    sensitive file's first token into the response.
+  - `version` (which reaches `rm -rf "$RELEASES/$version"` in the helper) is
+    charset-guarded `^[A-Za-z0-9._-]+$`; `artifact` is confined to the state dir
+    via `realpath` prefix (the `case` glob alone let `..` escape). Closed.
+  - `nonce` is validated (goes into a unit name); the broker no longer `exec`s
+    the helper inside its own oneshot job, so `TimeoutStartSec` can't kill a long
+    `apt`/`pip` mid-transaction and the path-unit re-triggers immediately.
+  - `_helper_dir` is a fixed path (default `/var/lib/experanto-edge`, matching the
+    path-unit) rather than derived from `buffer_path`, so a moved buffer can't
+    orphan the channel.
+- **WireGuard watchdog (`wg-watchdog.sh` + timer)** — root-level self-heal,
+  fully outside the agent: every 10 min, if `wg-quick@<iface>` is enabled and
+  the newest peer handshake is older than 35 min (or the interface is gone),
+  bring the tunnel back, with a 30-min cooldown against flapping. `--check`
+  prints the decision without acting. Would have auto-repaired the Curinga
+  outage of 2026-07-26 (tunnel died in place, host up, MQTT alive). Review
+  hardening: recovery is explicit `stop`+`wg-quick down`+`ip link del`+`start`
+  (a bare `restart` on an inactive unit skips `ExecStop` and dies with "already
+  exists" when the iface was brought up out-of-unit); `hs==0` is only stale once
+  the interface has been up longer than the threshold (no boot-race churn while
+  the peer isn't yet registered on the hub).
+- `install.sh` installs and enables both: `experanto-edge-helper.path` +
+  `.service`, `wg-watchdog.timer` + `.service`, `helper-broker.sh`,
+  `wg-watchdog.sh`.
+
 ## [0.4.0] — 2026-07-22
 
 _Fase G «Allineamento worker»: comandabilità remota senza OTA + affidabilità dei publish._

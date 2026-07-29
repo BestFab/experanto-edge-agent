@@ -88,6 +88,20 @@ EOF
 chmod 440 /etc/sudoers.d/experanto-edge
 visudo -cf /etc/sudoers.d/experanto-edge >/dev/null
 
+echo "==> helper broker (canale privilegiato col sandbox intatto) + watchdog WireGuard"
+# Il sandbox dell'agente (NoNewPrivileges) blocca `sudo -n`: le azioni privilegiate
+# passano dalla path-unit root che valida helper.request e delega a ota-helper.sh.
+install -m 750 -o root -g root "$SRC_DIR/ota/helper-broker.sh" "$APP_DIR/helper-broker.sh"
+install -m 750 -o root -g root "$SRC_DIR/ota/wg-watchdog.sh"  "$APP_DIR/wg-watchdog.sh"
+install -m 644 "$SRC_DIR/systemd/experanto-edge-helper.service" /etc/systemd/system/experanto-edge-helper.service
+install -m 644 "$SRC_DIR/systemd/experanto-edge-helper.path"    /etc/systemd/system/experanto-edge-helper.path
+install -m 644 "$SRC_DIR/systemd/wg-watchdog.service"           /etc/systemd/system/wg-watchdog.service
+install -m 644 "$SRC_DIR/systemd/wg-watchdog.timer"             /etc/systemd/system/wg-watchdog.timer
+systemctl daemon-reload
+systemctl enable --now experanto-edge-helper.path
+# Il watchdog e' un no-op finche' wg-quick@ non e' enabled (overlay system-managed).
+systemctl enable --now wg-watchdog.timer
+
 echo "==> baseline unattended-upgrades (security)"
 systemctl enable --now unattended-upgrades.service 2>/dev/null || true
 

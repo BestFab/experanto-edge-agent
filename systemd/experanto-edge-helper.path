@@ -1,0 +1,10 @@
+[Unit]
+Description=Experanto Edge - trigger del canale privilegiato (helper broker)
+Documentation=https://github.com/BestFab/experanto-edge-agent
+
+[Path]
+PathExists=/var/lib/experanto-edge/helper.request
+Unit=experanto-edge-helper.service
+
+[Install]
+WantedBy=multi-user.target

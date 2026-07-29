@@ -1,0 +1,22 @@
+[Unit]
+Description=Experanto Edge - helper broker (azioni privilegiate richieste dall'agente sandboxato)
+Documentation=https://github.com/BestFab/experanto-edge-agent
+# La path-unit ri-arma questa unit ogni volta che compare helper.request: nessun
+# rate-limit (un OTA + un reboot ravvicinati non devono finire in start-limit-hit,
+# che spegnerebbe anche la path-unit = canale privilegiato morto).
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/opt/experanto-edge/helper-broker.sh
+# Dir ROOT-OWNED per la response del broker (/run/experanto-edge): il parent /run
+# e' di root, quindi l'utente sandboxato non puo' piazzarci symlink. Preservata fra
+# i trigger del oneshot (altrimenti sparirebbe prima che l'agente la legga).
+RuntimeDirectory=experanto-edge
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+# Il broker ora si limita a validare e a lanciare ota-helper in una unit
+# transiente (systemd-run --no-block): finisce in un attimo. Il vecchio
+# TimeoutStartSec=1800 serviva quando l'azione girava DENTRO questo job e
+# rischiava di uccidere apt/pip a meta'.
+TimeoutStartSec=60

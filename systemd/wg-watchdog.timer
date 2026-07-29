@@ -1,0 +1,11 @@
+[Unit]
+Description=Experanto Edge - WireGuard watchdog ogni 10 minuti
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+RandomizedDelaySec=30
+Unit=wg-watchdog.service
+
+[Install]
+WantedBy=timers.target

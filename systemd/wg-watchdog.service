@@ -1,0 +1,8 @@
+[Unit]
+Description=Experanto Edge - WireGuard watchdog (riavvia wg-quick@ se l'handshake e' stantio)
+Documentation=https://github.com/BestFab/experanto-edge-agent
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/experanto-edge/wg-watchdog.sh

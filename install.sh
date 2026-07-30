@@ -2,8 +2,12 @@
 # Experanto Edge agent installer (Raspberry Pi / Debian).
 # Usage:
 #   sudo ./install.sh --code EXP-XXXX-XXXX --secret <SECRET> [--station <UUID>] \
-#                     [--broker mqtt.experanto.it] [--datalogger-ip 192.168.1.50] \
+#                     [--host-code EXP-YYYY] [--broker mqtt.experanto.it] [--datalogger-ip 192.168.1.50] \
 #                     [--wg-endpoint vps:51820 --wg-hub-pubkey <KEY> --wg-address 10.8.0.5/32 [--wg-persistent]]
+# --host-code = device_code of the Pi HOST this instance runs on (its own code on a
+# self-host): goes into up/status as a self-report the server cross-checks against the
+# operator-set host link (never an authority). Pass `--host-code -` to CLEAR a stale
+# self-report (e.g. after moving the datalogger to another Pi).
 # With --wg-endpoint the installer joins the Pi to YOUR WireGuard hub (no third party): it
 # generates a keypair, writes /etc/wireguard/wg-experanto.conf, and prints the Pi's PUBLIC key
 # to register as a peer on the hub. --wg-persistent keeps the link always up (for the bring-up);
@@ -35,13 +39,14 @@ if [[ ! -f "$SRC_DIR/pyproject.toml" ]]; then
   exec bash "$TMP/install.sh" "$@"
 fi
 
-CODE=""; SECRET=""; STATION=""; BROKER=""; DL_IP=""; UPD_URL=""; UPD_KEY=""
+CODE=""; SECRET=""; STATION=""; HOST_CODE=""; BROKER=""; DL_IP=""; UPD_URL=""; UPD_KEY=""
 WG_ENDPOINT=""; WG_HUB_PUBKEY=""; WG_ADDRESS=""; WG_SSH_USER=""; WG_PERSISTENT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --code) CODE="$2"; shift 2;;
     --secret) SECRET="$2"; shift 2;;
     --station) STATION="$2"; shift 2;;
+    --host-code) HOST_CODE="$2"; shift 2;;
     --broker) BROKER="$2"; shift 2;;
     --datalogger-ip) DL_IP="$2"; shift 2;;
     --update-base-url) UPD_URL="$2"; shift 2;;
@@ -108,7 +113,11 @@ systemctl enable --now unattended-upgrades.service 2>/dev/null || true
 echo "==> config + enrollment"
 CFG="$CFG_DIR/config.yaml"
 [[ -f "$CFG" ]] || install -m 640 "$SRC_DIR/config.example.yaml" "$CFG"
-ENROLL="$CODE:$SECRET"; [[ -n "$STATION" ]] && ENROLL="$ENROLL:$STATION"
+# HOST_CODE = device_code del Pi host (se stesso sui self-host): 4a parte
+# dell'enroll; senza station la 3a resta vuota (CODE:SECRET::HOST).
+ENROLL="$CODE:$SECRET"
+if [[ -n "$HOST_CODE" ]]; then ENROLL="$ENROLL:$STATION:$HOST_CODE"
+elif [[ -n "$STATION" ]]; then ENROLL="$ENROLL:$STATION"; fi
 EXPERANTO_EDGE_CONFIG="$CFG" "$APP_DIR/current/venv/bin/experanto-edge" --enroll "$ENROLL" || true
 if [[ -n "$BROKER" ]]; then sed -i "s/^broker_host:.*/broker_host: \"$BROKER\"/" "$CFG"; fi
 if [[ -n "$DL_IP" ]]; then sed -i "s/^datalogger_ip:.*/datalogger_ip: \"$DL_IP\"/" "$CFG"; fi

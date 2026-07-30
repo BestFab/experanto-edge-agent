@@ -20,6 +20,7 @@ def bootstrap(
     device_code: Optional[str],
     secret: Optional[str],
     station_id: Optional[str] = None,
+    host_device_code: Optional[str] = None,
     broker_host: Optional[str] = None,
 ) -> None:
     """Write identity into config on first run (idempotent)."""
@@ -29,6 +30,13 @@ def bootstrap(
         cfg.secret = secret
     if station_id:
         cfg.station_id = station_id
+    # host_device_code: valore = imposta; sentinella "-" = AZZERA (per correggere
+    # un self-report stantio dopo uno spostamento fisico del datalogger, senza
+    # editare config.yaml sul Pi); None/"" = lascia invariato (re-enroll idempotente).
+    if host_device_code == "-":
+        cfg.host_device_code = ""
+    elif host_device_code:
+        cfg.host_device_code = host_device_code
     if broker_host:
         cfg.broker_host = broker_host
     cfg.save()

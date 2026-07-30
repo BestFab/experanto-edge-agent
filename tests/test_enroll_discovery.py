@@ -48,3 +48,41 @@ def test_discovery_prefers_lowest_host(monkeypatch):
 def test_discovery_no_subnet(monkeypatch):
     monkeypatch.setattr(enroll, "local_subnet", lambda: None)
     assert enroll.discover_datalogger() is None
+
+
+def test_bootstrap_host_device_code(tmp_path):
+    # --enroll CODE:SECRET[:STATION[:HOST]]: la 4a parte scrive host_device_code;
+    # parti vuote (CODE:SECRET::HOST, station assente) non sovrascrivono.
+    from experanto_edge.config import Config
+
+    cfg = Config(device_code="", secret="")
+    cfg._path = str(tmp_path / "config.yaml")
+    enroll.bootstrap(cfg, "EXP-CHILD", "s3cret", None, "EXP-HOST")
+    assert cfg.host_device_code == "EXP-HOST"
+    assert cfg.station_id == ""
+
+    # split a 4 parti come in main(): station vuota resta vuota
+    parts = ("EXP-CHILD:s3cret::EXP-HOST".split(":") + [None] * 4)[:4]
+    cfg2 = Config(device_code="", secret="")
+    cfg2._path = str(tmp_path / "config2.yaml")
+    enroll.bootstrap(cfg2, parts[0], parts[1], parts[2], parts[3])
+    assert cfg2.station_id == ""
+    assert cfg2.host_device_code == "EXP-HOST"
+
+    # senza 4a parte il campo resta invariato (idempotente sui re-enroll)
+    enroll.bootstrap(cfg2, "EXP-CHILD", "s3cret", "st-9", None)
+    assert cfg2.host_device_code == "EXP-HOST"
+    assert cfg2.station_id == "st-9"
+
+
+def test_bootstrap_host_code_clear_sentinel(tmp_path):
+    # Sentinella "-" azzera un host_device_code stantio (correzione da remoto);
+    # None lo lascia invariato.
+    from experanto_edge.config import Config
+
+    cfg = Config(device_code="EXP-CHILD", secret="s", host_device_code="EXP-OLDHOST")
+    cfg._path = str(tmp_path / "config.yaml")
+    enroll.bootstrap(cfg, "EXP-CHILD", "s", None, None)
+    assert cfg.host_device_code == "EXP-OLDHOST"   # None = invariato
+    enroll.bootstrap(cfg, "EXP-CHILD", "s", None, "-")
+    assert cfg.host_device_code == ""              # "-" = azzerato

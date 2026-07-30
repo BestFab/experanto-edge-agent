@@ -312,6 +312,9 @@ class Agent:
                 "schema": "experanto.edge.status/1",
                 "device_code": self.cfg.device_code,
                 "station_id": self.cfg.station_id,
+                # Self-report del Pi host (0.4.2+): additivo, i consumatori 0.4.1
+                # lo ignorano. Verifica incrociata lato server, mai autorita'.
+                "host_device_code": self.cfg.host_device_code,
                 "local_ips": enroll.local_ips(),
                 "ssh_open_until": self.cfg.ssh_open_until,
                 "at": int(time.time()),
@@ -492,7 +495,9 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="experanto-edge")
     ap.add_argument("--config", help="percorso config.yaml")
     ap.add_argument("--once", action="store_true", help="esegue un solo ciclo ed esce")
-    ap.add_argument("--enroll", help="scrive CODE:SECRET[:STATION_ID] in config")
+    ap.add_argument("--enroll",
+                    help="scrive CODE:SECRET[:STATION_ID[:HOST_CODE]] in config "
+                         "(HOST_CODE = device_code del Pi host, se stesso sui self-host)")
     ap.add_argument("--discover-datalogger", action="store_true", help="scansiona la LAN")
     ap.add_argument("--selfcheck", action="store_true",
                     help="probe di salute (import+config+transport), usato dall'OTA prima dello swap")
@@ -517,8 +522,8 @@ def main(argv=None) -> int:
 
     setup_only = False
     if args.enroll:
-        parts = (args.enroll.split(":") + [None, None, None])[:3]
-        enroll.bootstrap(cfg, parts[0], parts[1], parts[2])
+        parts = (args.enroll.split(":") + [None, None, None, None])[:4]
+        enroll.bootstrap(cfg, parts[0], parts[1], parts[2], parts[3])
         log.info("enrollment salvato per device=%s", cfg.device_code)
         setup_only = True
 

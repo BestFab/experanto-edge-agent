@@ -6,6 +6,10 @@
 device_code: "EXP-XXXX-XXXX"     # also the MQTT username
 secret: "REPLACE_ME"             # device secret (MQTT password); shown once at enrollment
 station_id: ""                   # Experanto station UUID this device feeds
+host_device_code: ""             # device_code of the Pi HOST running this instance
+                                 # (= device_code on self-hosts). Self-report only:
+                                 # the server cross-checks it against the operator-set
+                                 # host link; it is never an authority.
 
 # --- broker ---
 broker_host: "mqtt.experanto.it"

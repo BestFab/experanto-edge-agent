@@ -22,6 +22,12 @@ class Config:
     device_code: str = ""
     secret: str = ""
     station_id: str = ""
+    # device_code della riga edge_devices del Pi HOST che esegue questa istanza
+    # (= device_code per i self-host, dove il datalogger E' il Pi). Viaggia in
+    # up/status come SELF-REPORT: il server lo usa come verifica incrociata del
+    # link autorevole host<->figlio (host_device_id, scritto solo dall'operatore),
+    # mai come autorita'. Vuoto = nessun report (agente non ancora configurato).
+    host_device_code: str = ""
 
     # --- broker ---
     broker_host: str = "mqtt.experanto.it"

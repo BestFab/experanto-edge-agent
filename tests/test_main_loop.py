@@ -168,3 +168,20 @@ def test_reader_error_still_sends_status(tmp_path):
     assert cfg.topic("up/telemetry") not in topics(t)
     status = [p[1] for p in t.published if p[0] == cfg.topic("up/status")][0]
     assert status["error"]
+
+
+def test_status_carries_host_device_code(tmp_path):
+    # Self-report 0.4.2: lo status dichiara il Pi host dalla config (additivo,
+    # vuoto quando non configurato — il server lo tratta come "nessun report").
+    cfg = make_cfg(tmp_path)
+    cfg.host_device_code = "EXP-HOSTPI"
+    t = FakeTransport()
+    Agent(cfg, FakeReader(), t, Buffer(cfg.buffer_path)).run_cycle()
+    status = [p[1] for p in t.published if p[0] == cfg.topic("up/status")][0]
+    assert status["host_device_code"] == "EXP-HOSTPI"
+
+    cfg2 = make_cfg(tmp_path)
+    t2 = FakeTransport()
+    Agent(cfg2, FakeReader(), t2, Buffer(cfg2.buffer_path)).run_cycle()
+    status2 = [p[1] for p in t2.published if p[0] == cfg2.topic("up/status")][0]
+    assert status2["host_device_code"] == ""

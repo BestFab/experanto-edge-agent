@@ -6,6 +6,24 @@ A `!` marks a **breaking change** (behaviour or config default changed).
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-07-30
+
+_Host self-report: each instance declares which Pi it runs on (cross-check, never authority)._
+
+### Added
+- **`host_device_code` config field + status self-report** — the `up/status`
+  envelope now carries `host_device_code`: the `device_code` of the Pi HOST's
+  `edge_devices` row this instance runs on (equal to `device_code` on
+  self-hosts, where the datalogger row IS the Pi). Purely additive (0.4.1
+  consumers ignore it). Server-side it is persisted as `reported_host_code`
+  and cross-checked against the operator-set authoritative link
+  (`edge_devices.host_device_id`, mig 37): a divergent report fails the
+  web-shell mono-tenant policy closed. The report is NEVER an authority —
+  a device credential cannot re-parent itself.
+- **`--enroll CODE:SECRET[:STATION_ID[:HOST_CODE]]`** — optional 4th part
+  writes `host_device_code` at enrollment; `install.sh --host-code EXP-XXXX`
+  passes it through (empty station stays empty: `CODE:SECRET::HOST` works).
+
 ## [0.4.1] — 2026-07-28
 
 _Remote repair: il sandbox resta intatto, ma OTA/reboot tornano possibili e il tunnel WG si auto-ripara._

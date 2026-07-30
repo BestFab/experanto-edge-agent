@@ -1,6 +1,6 @@
 [project]
 name = "experanto-edge-agent"
-version = "0.4.1"
+version = "0.4.2"
 description = "Experanto Edge agent — bridges a local datalogger (Solar-Log Base 2000) to Experanto over MQTT."
 readme = "README.md"
 license = { text = "MIT" }

@@ -90,6 +90,13 @@ rm -rf "$BOOT"; mkdir -p "$BOOT"
 python3 -m venv "$BOOT/venv"
 "$BOOT/venv/bin/pip" install --upgrade pip -q
 "$BOOT/venv/bin/pip" install -q "$SRC_DIR"
+# Il release e' root-owned ma l'agente gira come utente di servizio non-root:
+# DEVE poter attraversare/eseguire il venv. `mkdir`/`venv` ereditano l'umask del
+# chiamante -> con umask 077 (es. cloud-init/systemd al primo boot) le dir
+# nascerebbero 700 e il servizio morirebbe con 203/EXEC "Permission denied".
+# Forziamo la traversabilita' a prescindere dall'umask (a+rX = +x sulle dir e
+# sugli eseguibili, +r ovunque; nessun permesso di scrittura aggiunto).
+chmod -R a+rX "$BOOT"
 ln -sfn "$BOOT" "$APP_DIR/current"
 
 echo "==> OTA helper + sudoers (NOPASSWD, solo questo script)"

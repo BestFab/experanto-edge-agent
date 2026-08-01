@@ -82,6 +82,14 @@ install -d -o "$SVC_USER" -g "$SVC_USER" "$STATE_DIR"
 install -d -o "$SVC_USER" -g "$SVC_USER" "$CFG_DIR"
 install -d "$RELEASES"
 
+# apt ASPETTA il lock invece di fallire: al primo boot unattended-upgrades tiene
+# /var/lib/dpkg/lock-frontend, e install.sh ha piu' apt-get (venv qui + wireguard-tools
+# piu' avanti) che possono collidere anche DOPO il lock-wait del firstboot, se
+# unattended-upgrades riparte a meta' install (visto in campo: FATAL rc=100 sul
+# wireguard-tools). DPkg::Lock::Timeout fa attendere ogni apt fino a N secondi.
+mkdir -p /etc/apt/apt.conf.d
+printf 'DPkg::Lock::Timeout "900";\n' > /etc/apt/apt.conf.d/99experanto-lock-timeout
+
 echo "==> venv + pacchetto (release 'bootstrap')"
 apt-get update -qq
 apt-get install -y -qq python3-venv python3-pip unattended-upgrades

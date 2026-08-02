@@ -6,6 +6,36 @@ A `!` marks a **breaking change** (behaviour or config default changed).
 
 ## [Unreleased]
 
+## [0.4.3] — 2026-08-02
+
+_On-demand history hardened for big/slow dataloggers (Curinga: 97 inverters)._
+
+### Added
+- **`history_spacing` config field** (float seconds, default `0.0` = burst,
+  unchanged behaviour) — pause between the per-device 143 history queries.
+  Old/slow dataloggers with many inverters 503 under the burst; raise it
+  (e.g. `1.0`) on those. In the `set_config` whitelist (range `[0, 30]`),
+  hot-applied to the reader, no restart needed.
+- **Per-device retry** in `fetch_history_curves` (2 attempts, pause
+  `max(history_spacing, 2s)`) — but ONLY on transport errors (503/timeout/
+  truncated JSON). A valid response without the requested node is DATA (the
+  datalogger has no archive for that daysback): no blind retry, and the
+  device is INCLUDED with a `None` node so the server sees
+  "present-but-empty" and closes the day instead of retrying it forever.
+  On password-protected dataloggers the session is re-established inside
+  the attempt loop (a 503 clears it; without re-login every subsequent
+  query was silently unauthorized). One retry on the 860 probe too (it
+  gates the mapping of every curve).
+
+### Fixed
+- **Honest `fetch_history` ack** — `total_devices` is now the number of
+  devices that SHOULD have been read (reader-reported `expected`), not just
+  the successes: a collection missing a device reaches the server as
+  `done=false` instead of being passed off as complete. `expected == 0`
+  (datalogger unreachable, no known devices) acks `ok=false` — never
+  "0 of 0 = success". Backward compatible with pre-0.4.3 readers (fallback
+  to `len(curves)`).
+
 ## [0.4.2] — 2026-07-30
 
 _Host self-report: each instance declares which Pi it runs on (cross-check, never authority)._

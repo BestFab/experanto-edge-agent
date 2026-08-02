@@ -51,6 +51,11 @@ class Config:
     # 503 (dato inutilizzabile lato server). Abilitare a `true` solo quando 860/870
     # tornano disponibili e il mapping server e' pronto.
     collect_inverter_detail: bool = False
+    # Pausa (s) fra le query 143 dello storico on-demand. 0 = raffica (ok sui
+    # DL locali senza rate limit, misurato su .57); sui DL vecchi/lenti con
+    # MOLTI inverter (Curinga: 97) la raffica produce 503/risposte troncate ->
+    # alzare (es. 1.0). Modificabile da remoto via set_config.
+    history_spacing: float = 0.0
 
     # --- behaviour ---
     interval: int = 300                  # seconds between cycles (= worker poll rate)

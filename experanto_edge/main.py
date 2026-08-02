@@ -35,6 +35,7 @@ READERS = {
         cfg.datalogger_ip, cfg.datalogger_port,
         user_password=cfg.datalogger_user_password,
         collect_detail=cfg.collect_inverter_detail,
+        history_spacing=getattr(cfg, "history_spacing", 0.0),
     ),
 }
 
@@ -74,6 +75,15 @@ def _cfg_log_level(v):
     return v.upper()
 
 
+def _cfg_history_spacing(v):
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        raise ValueError("atteso numero")
+    v = float(v)
+    if not (0.0 <= v <= 30.0):
+        raise ValueError("fuori range [0, 30]")
+    return v
+
+
 # chiave -> (validatore, True se serve un restart del processo perche' abbia effetto)
 SET_CONFIG_KEYS = {
     "collect_inverter_detail": (_cfg_bool, False),  # applicata a caldo al reader
@@ -81,6 +91,7 @@ SET_CONFIG_KEYS = {
     "interval": (_cfg_interval, False),             # il loop la rilegge a ogni giro
     "command_wait": (_cfg_command_wait, False),
     "log_level": (_cfg_log_level, False),           # applicata a caldo al root logger
+    "history_spacing": (_cfg_history_spacing, False),  # applicata a caldo al reader
 }
 
 
@@ -210,6 +221,8 @@ class Agent:
         il processo, che rilegge la config appena salvata)."""
         if "collect_inverter_detail" in applied and hasattr(self.reader, "collect_detail"):
             self.reader.collect_detail = applied["collect_inverter_detail"]
+        if "history_spacing" in applied and hasattr(self.reader, "history_spacing"):
+            self.reader.history_spacing = applied["history_spacing"]
         if "log_level" in applied:
             logging.getLogger().setLevel(applied["log_level"])
 
@@ -240,7 +253,12 @@ class Agent:
             return False, f"reader {self.cfg.reader_type} senza storico on-demand"
         ch860 = res.get("ch860")
         curves = res.get("curves") or {}
-        total = len(curves)
+        # ACK ONESTO: `total` = device che ANDAVANO letti (dal reader 0.4.3),
+        # non i soli successi — un device fallito rendeva la raccolta
+        # "completa" agli occhi del server. Fallback = len(curves) per reader
+        # senza il campo (contratto pre-0.4.3).
+        expected = res.get("expected")
+        total = expected if isinstance(expected, int) and expected > 0 else len(curves)
         sent = 0
         for idx, node in curves.items():
             payload = {

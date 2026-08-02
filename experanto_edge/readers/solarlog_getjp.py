@@ -123,7 +123,8 @@ class SolarlogGetjpReader(Reader):
 
     def __init__(self, ip: str, port: int = 80, timeout: float = 10.0,
                  spacing: float = 1.5, history_interval: float = 3600.0,
-                 user_password: str = "", collect_detail: bool = True):
+                 user_password: str = "", collect_detail: bool = True,
+                 history_spacing: float = 0.0):
         # NON sollevare qui: un datalogger assente/non ancora configurato non deve far
         # crashare l'agente al boot. L'errore emerge in read() -> lo cattura run_cycle,
         # che riporta lo stato "errore" e ritenta al ciclo dopo (niente crash-loop).
@@ -161,9 +162,10 @@ class SolarlogGetjpReader(Reader):
         self._last_indices: List[str] = []
         # Pausa fra query nello storico on-demand. 0 = a raffica: il datalogger
         # LOCALE non ha rate limit (misurato su Growatt MAX/.57: 9 curve intere a
-        # spacing 0 -> 4.7s, zero 503). Diversa da `self.spacing` (1.5s), che serve
-        # solo al ciclo telemetria dove la latenza non conta.
-        self.history_spacing: float = 0.0
+        # spacing 0 -> 4.7s, zero 503). Sui DL vecchi con MOLTI inverter la
+        # raffica va spaziata (config `history_spacing`, hot-reload da remoto).
+        # Diversa da `self.spacing` (1.5s), che serve solo al ciclo telemetria.
+        self.history_spacing: float = history_spacing
 
     # ---- POST getjp (open oppure privilegiato con sessione + header CSRF) ----
 
@@ -295,16 +297,22 @@ class SolarlogGetjpReader(Reader):
 
     # ---- Storico on-demand: curva per-inverter del giorno (143 blocco 100) ----
 
+    # Tentativi per device nello storico (1 + retry): un 503/risposta troncata
+    # transitoria non deve buttare il device (e con lui l'intero giorno, dato
+    # che il server esige la raccolta COMPLETA rispetto all'inventario).
+    HISTORY_ATTEMPTS = 2
+    HISTORY_RETRY_PAUSE = 2.0     # s, minimo prima del retry (>= history_spacing)
+
     def fetch_history_curves(self, daysback: int) -> Dict[str, Any]:
         """RAW per la curva STORICA per-inverter di `daysback` giorni fa.
 
         Thin-relay: forwarda i blocchi grezzi (nessun parsing qui). Ritorna
-        ``{"ch860": <860 epoch corrente>, "curves": {idx: <nodo 143:100:daysback>}}``.
-        Interroga il datalogger a raffica (``history_spacing`` = 0): quello LOCALE non
-        ha rate limit — misurato ~5s per 9 curve intere, ~0.6s/curva. Riusa gli indici
-        e il 860 gia' in cache dal ciclo telemetria come ottimizzazione (evita 782/740
-        e il probe epoch), non e' un requisito. Best-effort per device (un inverter
-        che non risponde non blocca gli altri)."""
+        ``{"ch860": <860>, "curves": {idx: <nodo>}, "expected": <n indici>}``:
+        ``expected`` e' il numero di device che ANDAVANO letti — il chiamante
+        lo usa per un ack onesto (curves < expected = raccolta incompleta).
+        ``history_spacing`` = 0 interroga a raffica (ok sui DL senza rate
+        limit, ~0.6s/curva); sui DL vecchi con molti inverter va alzato.
+        Un device che fallisce anche il retry non blocca gli altri."""
         self._ensure_session()   # login solo se c'e' password (no-op su DL aperto)
         sp = self.history_spacing
         indices = self._last_indices
@@ -324,15 +332,21 @@ class SolarlogGetjpReader(Reader):
                 self._last_860 = time.time()
         curves: Dict[str, Any] = {}
         for idx in indices:
-            resp = self._getjp_priv_optional(_curve_query(idx, daysback))
             node = None
-            if isinstance(resp, dict):
-                node = resp.get("143", {}).get(str(idx), {}).get("100", {}).get(str(daysback))
+            for attempt in range(1, self.HISTORY_ATTEMPTS + 1):
+                resp = self._getjp_priv_optional(_curve_query(idx, daysback))
+                if isinstance(resp, dict):
+                    node = resp.get("143", {}).get(str(idx), {}) \
+                               .get("100", {}).get(str(daysback))
+                if node is not None:
+                    break
+                if attempt < self.HISTORY_ATTEMPTS:
+                    time.sleep(max(sp, self.HISTORY_RETRY_PAUSE))
             if node is not None:
                 curves[str(idx)] = node
             if sp:
                 time.sleep(sp)
-        return {"ch860": ch860, "curves": curves}
+        return {"ch860": ch860, "curves": curves, "expected": len(indices)}
 
     # ---- Ciclo di lettura ----
 

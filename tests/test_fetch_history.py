@@ -7,6 +7,8 @@ loop a connessione persistente.
 - _run_persistent / _publish_persistent: telemetria sul timer, comandi istantanei,
   buffer quando il broker e' giu'. Il path intermittente (default) resta invariato.
 """
+import json
+
 from experanto_edge.buffer import Buffer
 from experanto_edge.config import Config
 from experanto_edge.main import Agent
@@ -292,3 +294,104 @@ def test_reader_error_persistent_still_status(tmp_path):
     statuses = [p for p in t.published if p[0] == cfg.topic("up/status")]
     assert statuses and statuses[0][1]["error"]
     assert cfg.topic("up/telemetry") not in [p[0] for p in t.published]
+
+
+# ---------------- 0.4.3: retry per-device + ack onesto + spacing ----------------
+
+def test_fetch_history_curves_retries_failed_device(monkeypatch):
+    """Un 503 transitorio su un device viene ritentato e recuperato."""
+    attempts = {"1": 0}
+
+    def fake_post(url, json=None, timeout=None, headers=None):
+        if isinstance(json, dict) and "143" in json:
+            dev = list(json["143"].keys())[0]
+            if dev == "1":
+                attempts["1"] += 1
+                if attempts["1"] == 1:
+                    return FakeResp(None, status=503)      # primo colpo: 503
+            node = CURVE0 if dev == "0" else CURVE1
+            return FakeResp({"143": {dev: {"100": {"1": node}}}})
+        raise AssertionError(f"query inattesa {json}")
+
+    monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.requests.post", fake_post)
+    monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.time.sleep", lambda s: None)
+    r = SolarlogGetjpReader("192.168.1.50", spacing=0)
+    r._last_indices = ["0", "1"]
+    r._channels_860 = {"3": _epoch(3)}
+    out = r.fetch_history_curves(daysback=1)
+    assert set(out["curves"].keys()) == {"0", "1"}         # recuperato col retry
+    assert out["expected"] == 2
+    assert attempts["1"] == 2
+
+
+def test_fetch_history_curves_expected_counts_failed_devices(monkeypatch):
+    """Device fallito anche al retry: escluso dalle curves ma contato in expected."""
+    def fake_post(url, json=None, timeout=None, headers=None):
+        if isinstance(json, dict) and "143" in json:
+            dev = list(json["143"].keys())[0]
+            if dev == "1":
+                return FakeResp(None, status=503)          # sempre giu'
+            return FakeResp({"143": {dev: {"100": {"1": CURVE0}}}})
+        raise AssertionError(f"query inattesa {json}")
+
+    monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.requests.post", fake_post)
+    monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.time.sleep", lambda s: None)
+    r = SolarlogGetjpReader("192.168.1.50", spacing=0)
+    r._last_indices = ["0", "1"]
+    r._channels_860 = {"3": _epoch(3)}
+    out = r.fetch_history_curves(daysback=1)
+    assert set(out["curves"].keys()) == {"0"}
+    assert out["expected"] == 2
+
+
+def test_fetch_history_honest_ack_on_missing_device(tmp_path):
+    """curves < expected: ack ok=False/done=false, total_devices=attesi."""
+    class PartialReader(FakeReader):
+        def fetch_history_curves(self, daysback):
+            return {"ch860": {"3": "EPOCH"}, "curves": {"0": "C0"}, "expected": 2}
+
+    cfg = make_cfg(tmp_path)
+    t = FakeTransport()
+    agent = Agent(cfg, PartialReader(), t, Buffer(cfg.buffer_path))
+    ok, detail = agent.fetch_history({"date": "2026-07-31", "daysback": 2},
+                                     {"command_id": "cmd-p"})
+    assert not ok                                          # raccolta incompleta
+    d = json.loads(detail)
+    assert d == {"done": False, "n_devices": 2, "sent": 1}
+    hist = _hist(t, cfg)
+    assert len(hist) == 1
+    assert hist[0][1]["total_devices"] == 2                # il server sa che manca 1
+
+
+def test_fetch_history_backcompat_reader_without_expected(tmp_path):
+    """Reader pre-0.4.3 (niente `expected`): comportamento invariato."""
+    cfg = make_cfg(tmp_path)
+    t = FakeTransport()
+    agent = Agent(cfg, HistReader(), t, Buffer(cfg.buffer_path))
+    ok, detail = agent.fetch_history({"date": "2026-07-16", "daysback": 2},
+                                     {"command_id": "cmd-b"})
+    assert ok
+    assert json.loads(detail)["n_devices"] == 2
+
+
+def test_history_spacing_from_config_and_hot_apply(tmp_path):
+    """history_spacing: dal config al reader (factory) e a caldo via set_config."""
+    from experanto_edge.main import build_reader
+
+    cfg = make_cfg(tmp_path)
+    cfg.reader_type = "solarlog_getjp"
+    cfg.datalogger_ip = "192.168.1.50"
+    cfg.history_spacing = 2.5
+    r = build_reader(cfg)
+    assert r.history_spacing == 2.5
+
+    agent = Agent(cfg, r, FakeTransport(), Buffer(cfg.buffer_path))
+    ok, detail = agent.set_config({"set": {"history_spacing": 1.0}})
+    assert ok, detail
+    assert r.history_spacing == 1.0                        # applicata a caldo
+    assert json.loads(detail)["restart_required"] == []
+    # validazione: fuori range / tipo sbagliato -> rifiuto atomico
+    assert not agent.set_config({"set": {"history_spacing": 31}})[0]
+    assert not agent.set_config({"set": {"history_spacing": "x"}})[0]
+    assert not agent.set_config({"set": {"history_spacing": True}})[0]
+    assert r.history_spacing == 1.0                        # invariata dopo i rifiuti

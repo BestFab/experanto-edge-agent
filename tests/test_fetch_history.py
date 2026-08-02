@@ -395,3 +395,42 @@ def test_history_spacing_from_config_and_hot_apply(tmp_path):
     assert not agent.set_config({"set": {"history_spacing": "x"}})[0]
     assert not agent.set_config({"set": {"history_spacing": True}})[0]
     assert r.history_spacing == 1.0                        # invariata dopo i rifiuti
+
+
+def test_fetch_history_curves_valid_response_without_node_no_retry(monkeypatch):
+    """Risposta valida senza nodo (giorno pre-archivio) = dato, non errore:
+    UN solo tentativo e il device e' incluso con node None."""
+    posts = {"n": 0}
+
+    def fake_post(url, json=None, timeout=None, headers=None):
+        if isinstance(json, dict) and "143" in json:
+            posts["n"] += 1
+            dev = list(json["143"].keys())[0]
+            return FakeResp({"143": {dev: {"100": {}}}})   # nodo assente
+        raise AssertionError(f"query inattesa {json}")
+
+    monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.requests.post", fake_post)
+    monkeypatch.setattr("experanto_edge.readers.solarlog_getjp.time.sleep", lambda s: None)
+    r = SolarlogGetjpReader("192.168.1.50", spacing=0)
+    r._last_indices = ["0", "1"]
+    r._channels_860 = {"3": _epoch(3)}
+    out = r.fetch_history_curves(daysback=999)
+    assert out["curves"] == {"0": None, "1": None}         # presenti-ma-vuoti
+    assert out["expected"] == 2
+    assert posts["n"] == 2                                 # nessun retry cieco
+
+
+def test_fetch_history_zero_expected_is_honest_failure(tmp_path):
+    """DL irraggiungibile (0 device): ack ok=False, mai '0 su 0 = successo'."""
+    class DeadReader(FakeReader):
+        def fetch_history_curves(self, daysback):
+            return {"ch860": None, "curves": {}, "expected": 0}
+
+    cfg = make_cfg(tmp_path)
+    t = FakeTransport()
+    agent = Agent(cfg, DeadReader(), t, Buffer(cfg.buffer_path))
+    ok, detail = agent.fetch_history({"date": "2026-07-31", "daysback": 1},
+                                     {"command_id": "cmd-z"})
+    assert not ok
+    assert json.loads(detail) == {"done": False, "n_devices": 0, "sent": 0}
+    assert not _hist(t, cfg)

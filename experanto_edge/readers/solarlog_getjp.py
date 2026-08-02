@@ -327,22 +327,38 @@ class SolarlogGetjpReader(Reader):
         ch860 = self._channels_860
         if ch860 is None:
             ch860 = self._fetch_channels_860(spacing=sp)
+            if not ch860:
+                # Il 860 condiziona il mapping di TUTTE le curve: un 503
+                # transitorio qui butterebbe l'intera raccolta. Un retry.
+                time.sleep(max(sp, self.HISTORY_RETRY_PAUSE))
+                ch860 = self._fetch_channels_860(spacing=sp)
             if ch860:
                 self._channels_860 = ch860
                 self._last_860 = time.time()
         curves: Dict[str, Any] = {}
         for idx in indices:
+            responded = False
             node = None
             for attempt in range(1, self.HISTORY_ATTEMPTS + 1):
+                # Su DL protetto un 503 azzera la sessione (_getjp_priv_optional):
+                # senza re-login il retry (e ogni device successivo) e' negato.
+                if self.user_password and self._session is None:
+                    self._ensure_session()
                 resp = self._getjp_priv_optional(_curve_query(idx, daysback))
                 if isinstance(resp, dict):
+                    # Risposta VALIDA: niente retry. Il nodo puo' mancare o
+                    # essere vuoto ([[hdr],[]]) = il DL non ha dati per quel
+                    # daysback (pre-archivio): e' un dato, non un errore — il
+                    # device va INCLUSO cosi' il server vede "presente ma
+                    # vuoto" e chiude il giorno, invece di un finto fallimento
+                    # da ritentare per sempre.
+                    responded = True
                     node = resp.get("143", {}).get(str(idx), {}) \
                                .get("100", {}).get(str(daysback))
-                if node is not None:
                     break
                 if attempt < self.HISTORY_ATTEMPTS:
                     time.sleep(max(sp, self.HISTORY_RETRY_PAUSE))
-            if node is not None:
+            if responded:
                 curves[str(idx)] = node
             if sp:
                 time.sleep(sp)

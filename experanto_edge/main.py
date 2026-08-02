@@ -259,6 +259,12 @@ class Agent:
         # senza il campo (contratto pre-0.4.3).
         expected = res.get("expected")
         total = expected if isinstance(expected, int) and expected > 0 else len(curves)
+        if total == 0:
+            # DL irraggiungibile/nessun device noto: MAI ackare "0 su 0" come
+            # successo — il server tratterebbe un fallimento totale come
+            # raccolta completa vuota.
+            return False, json.dumps({"done": False, "n_devices": 0, "sent": 0},
+                                     sort_keys=True)
         sent = 0
         for idx, node in curves.items():
             payload = {

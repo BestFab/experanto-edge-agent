@@ -1,0 +1,2807 @@
+{
+ "body": {
+  "STS__INVERTER_SCAN": {
+   "szDescription": "Inverter Scan",
+   "szGrpId": "STS__INVERTER_SCAN",
+   "vecStsParams": [
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": "ZS3ES050N9L261"
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Disconnected"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "True"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": "ZS3ES050N9L263"
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Disconnected"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "True"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": "ZS3ES050N9L304"
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Disconnected"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "True"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": "ZS3ES050N9L122"
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Disconnected"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "True"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": "ZS3ES050N9L303"
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Disconnected"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "True"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": "ZS3ES050N9L262"
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Disconnected"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "True"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_STS",
+      "szSV": "Not present"
+     },
+     {
+      "szKey": "INV_REGS_ERR",
+      "szSV": "False"
+     },
+     {
+      "szKey": "MODBUS_ADDR",
+      "szSV": ""
+     },
+     {
+      "szKey": "SCAN_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_IS_HYD",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_NUM_OF_PHASE",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_PROTO",
+      "szSV": ""
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "ARM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPM_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "DSPS_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "COUNTRY",
+      "szSV": ""
+     },
+     {
+      "szKey": "REGION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SAFETY_VER",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADING",
+      "szSV": "False"
+     },
+     {
+      "szKey": "UPGRADE_TARGET_MODULE",
+      "szSV": ""
+     },
+     {
+      "szKey": "UPGRADE_STATUS",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "DEVICE_INFO",
+      "szSV": ""
+     }
+    ]
+   ]
+  },
+  "STS__INVERTER_REGS": {
+   "szDescription": "Inverter Registers",
+   "szGrpId": "STS__INVERTER_REGS",
+   "vecStsParams": [
+    [
+     {
+      "szKey": "INV_REG__SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_REG__BUS_ERR",
+      "szSV": "39"
+     },
+     {
+      "szKey": "INV_REG__HPRIO_DATA_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "INV_REG__H_PRIO_DATA",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_REG__TM_DATA_VALID",
+      "szSV": "False"
+     },
+     {
+      "szKey": "INV_REG__TM_DATA_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "INV_REG__DATA",
+      "szSV": ""
+     }
+    ],
+    [
+     {
+      "szKey": "INV_REG__SN",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_REG__BUS_ERR",
+      "szSV": "31"
+     },
+     {
+      "szKey": "INV_REG__HPRIO_DATA_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "INV_REG__H_PRIO_DATA",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_REG__TM_DATA_VALID",
+      "szSV": "False"
+     },
+     {
+      "szKey": "INV_REG__TM_DATA_TIMESTAMP",
+      "szSV": ""
+     },
+     {
+      "bJson": true,
+      "szKey": "INV_REG__DATA",
+      "szSV": ""
+     }
+    ]
+   ]
+  },
+  "STS__PLANT": {
+   "szDescription": "Plant",
+   "szGrpId": "STS__PLANT",
+   "vecStsParams": [
+    [
+     {
+      "szKey": "MONITOR_MODE",
+      "szSV": "Inverter_Master"
+     },
+     {
+      "szKey": "PLANT_TYP",
+      "szSV": "Three_phase"
+     },
+     {
+      "szKey": "CONTRACTUAL_PWR",
+      "szSV": "300"
+     },
+     {
+      "szKey": "TOT_INVERTER_PWR",
+      "szSV": "300"
+     },
+     {
+      "szKey": "EG1_Production",
+      "szSV": ""
+     },
+     {
+      "szKey": "EG4_Load_Consumption",
+      "szSV": ""
+     },
+     {
+      "szKey": "EG5_Charging_Energy",
+      "szSV": ""
+     },
+     {
+      "szKey": "EG6_Discharging_Energy",
+      "szSV": ""
+     },
+     {
+      "szKey": "EG2_Grid_Feed_in",
+      "szSV": ""
+     },
+     {
+      "szKey": "EG3_Energy_Purchased",
+      "szSV": ""
+     },
+     {
+      "szKey": "AGG_EG_ResetInProgress",
+      "szSV": "False"
+     },
+     {
+      "szKey": "ET1_Production",
+      "szSV": ""
+     },
+     {
+      "szKey": "ET4_Load_Consumption",
+      "szSV": ""
+     },
+     {
+      "szKey": "ET5_Charging_Energy",
+      "szSV": ""
+     },
+     {
+      "szKey": "ET6_Discharging_Energy",
+      "szSV": ""
+     },
+     {
+      "szKey": "ET2_Grid_Feed_in",
+      "szSV": ""
+     },
+     {
+      "szKey": "ET3_Energy_Purchased",
+      "szSV": ""
+     },
+     {
+      "szKey": "P_DC_TOT",
+      "szSV": ""
+     },
+     {
+      "szKey": "P_LOAD",
+      "szSV": ""
+     },
+     {
+      "szKey": "P_B_AGGR",
+      "szSV": ""
+     },
+     {
+      "szKey": "P_EXP",
+      "szSV": ""
+     },
+     {
+      "szKey": "P_EXT",
+      "szSV": ""
+     },
+     {
+      "szKey": "P_CAR",
+      "szSV": "0.00000"
+     },
+     {
+      "szKey": "AGG_FIELDS_UPD",
+      "szSV": "0"
+     },
+     {
+      "szKey": "INV_MNG_OPERATION",
+      "szSV": "Scan"
+     },
+     {
+      "szKey": "MTR_MNG_OPERATION",
+      "szSV": "Poll"
+     },
+     {
+      "szKey": "EVC485_MNG_OPERATION",
+      "szSV": ""
+     },
+     {
+      "szKey": "EVCCAN_MNG_OPERATION",
+      "szSV": ""
+     },
+     {
+      "szKey": "PWR_MGC_MNG_OPERATION",
+      "szSV": ""
+     },
+     {
+      "szKey": "HP_MNG_OPERATION",
+      "szSV": ""
+     },
+     {
+      "szKey": "SS_MNG_OPERATION",
+      "szSV": ""
+     },
+     {
+      "szKey": "PSC100_MNG_OPERATION",
+      "szSV": ""
+     },
+     {
+      "szKey": "INV_MNG_DATA_ACQ",
+      "szSV": "False"
+     },
+     {
+      "szKey": "PWR_MGC_MNG_DATA_ACQ",
+      "szSV": "True"
+     },
+     {
+      "szKey": "HP_MNG_DATA_ACQ",
+      "szSV": "True"
+     },
+     {
+      "szKey": "PSC100_MNG_DATA_ACQ",
+      "szSV": "True"
+     },
+     {
+      "szKey": "INV_PSC100_MNG_DATA_ACQ",
+      "szSV": "True"
+     },
+     {
+      "szKey": "EXP_TOT_ACT_PWR",
+      "szSV": "0"
+     },
+     {
+      "szKey": "EXP_A_ACT_PWR",
+      "szSV": "0"
+     },
+     {
+      "szKey": "EXP_B_ACT_PWR",
+      "szSV": "0"
+     },
+     {
+      "szKey": "EXP_C_ACT_PWR",
+      "szSV": "0"
+     },
+     {
+      "szKey": "DEBUG_INFO",
+      "szSV": ""
+     },
+     {
+      "szKey": "PLANT_ERROR",
+      "szSV": "PCC_MONITOR"
+     },
+     {
+      "szKey": "ACTIV_PWR_MEAN_LIMIT",
+      "szSV": ""
+     },
+     {
+      "szKey": "P_SENT_TO_LOADS",
+      "szSV": "0.00000"
+     },
+     {
+      "szKey": "P_AV_FOR_LOADS",
+      "szSV": ""
+     },
+     {
+      "szKey": "BATTERY_PROTECT_OVRD_TIME",
+      "szSV": ""
+     },
+     {
+      "szKey": "EVCH_CAN_DEV_FOUND",
+      "szSV": "0"
+     },
+     {
+      "szKey": "SOC_MEAN",
+      "szSV": "0.00000"
+     },
+     {
+      "szKey": "E_SENSE_PERF_IDX_GLOB",
+      "szSV": "N/A"
+     },
+     {
+      "szKey": "E_SENSE_BOOTSTRAP_CHARGE_ON",
+      "szSV": "False"
+     },
+     {
+      "szKey": "ENRG_STRG_MODE_CTRL",
+      "szSV": "Default"
+     },
+     {
+      "szKey": "PREFERRED_PWR_TO_BATT",
+      "szSV": ""
+     },
+     {
+      "szKey": "PWR_SET_TO_BATTERY",
+      "szSV": ""
+     },
+     {
+      "szKey": "PLANT_VRT_ACTIVE",
+      "szSV": "False"
+     },
+     {
+      "szKey": "PLANT_VRT_START_TICK",
+      "szSV": ""
+     },
+     {
+      "szKey": "PLANT_VRT_TIME_START",
+      "szSV": ""
+     },
+     {
+      "szKey": "PLANT_VRT_TIME_DURATION",
+      "szSV": ""
+     },
+     {
+      "szKey": "DEVICE_CMD_SCAN_STS",
+      "szSV": "Idle"
+     },
+     {
+      "szKey": "DEVICE_CMD_CLOUD_SCAN_ID",
+      "szSV": ""
+     },
+     {
+      "szKey": "DEVICE_CMD_UPDATE_STS",
+      "szSV": "Idle"
+     },
+     {
+      "szKey": "STS_DEVICE_CMD_UPDATE_TYP",
+      "szSV": ""
+     }
+    ]
+   ]
+  },
+  "STS__LOGGER": {
+   "szDescription": "HUB Info",
+   "szGrpId": "STS__LOGGER",
+   "vecStsParams": [
+    [
+     {
+      "szKey": "LOGGER_SN",
+      "szSV": "AH1773298249"
+     },
+     {
+      "szKey": "HW_VER",
+      "szSV": "0.2.2.2"
+     },
+     {
+      "szKey": "PROD_DATE",
+      "szSV": "20260312"
+     },
+     {
+      "szKey": "OPERATING_COUNTRY",
+      "szSV": "IT"
+     },
+     {
+      "szKey": "TIME_ZONE",
+      "szSV": "Europe/Rome"
+     },
+     {
+      "szKey": "GLOB_INTERNET_AV",
+      "szSV": "True"
+     },
+     {
+      "szKey": "INT_TEMP",
+      "szSV": "77"
+     },
+     {
+      "szKey": "REBOOT",
+      "szSV": "False"
+     },
+     {
+      "szKey": "LOGGER_EVT",
+      "szSV": "Power_ON"
+     },
+     {
+      "szKey": "BOOT_TIME",
+      "szSV": "2026-08-03 01:01:47"
+     },
+     {
+      "szKey": "SD_CARD_PRESENT",
+      "szSV": "True"
+     },
+     {
+      "szKey": "USB_STICK_PRESENT",
+      "szSV": "False"
+     },
+     {
+      "szKey": "SAFETY_REBOOT_ARMED",
+      "szSV": "False"
+     },
+     {
+      "szKey": "ATP_COMPLETED",
+      "szSV": "True"
+     }
+    ]
+   ]
+  },
+  "STS__TIME": {
+   "szDescription": "HUB Time",
+   "szGrpId": "STS__TIME",
+   "vecStsParams": [
+    [
+     {
+      "szKey": "SYNC_TIME",
+      "szSV": "True"
+     },
+     {
+      "szKey": "CURRENT_SYS_TIME",
+      "szSV": "2026-08-03 23:37:30"
+     },
+     {
+      "szKey": "CURRENT_UTC_TIME",
+      "szSV": "1785793050"
+     }
+    ]
+   ]
+  },
+  "STS__APPL_ALARMS": {
+   "szDescription": "HUB Application Alarms",
+   "szGrpId": "STS__APPL_ALARMS",
+   "vecStsParams": [
+    [
+     {
+      "szKey": "Err: 1042 [Inverter485Mng 643] , Occ:354764",
+      "szSV": "{\"bActive\":true,\"iTmpOcc\":1965,\"szBeginOccTime\":\"2026-08-03 01:01:51\",\"szEndOccTime\":\"2026-08-03 23:37:04\",\"szMsg\":\"Found wrong num of hyd inverter..\",\"szTMId\":\"1042\"}"
+     },
+     {
+      "szKey": "Err: 1100 [RS485 354] , Occ:6252",
+      "szSV": "{\"bActive\":false,\"iTmpOcc\":6252,\"szBeginOccTime\":\"2026-08-03 01:01:53\",\"szEndOccTime\":\"2026-08-03 23:37:03\",\"szMsg\":\"Modbus 0: Cannot read reg[Connection timed out](iSlave=5, iStartAddr=0x440, iSize=0x40)\",\"szTMId\":\"1100\"}"
+     }
+    ]
+   ]
+  }
+ },
+ "head": "status"
+}

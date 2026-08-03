@@ -6,6 +6,38 @@ A `!` marks a **breaking change** (behaviour or config default changed).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-08-03
+
+_Second brand on the edge: the Azzurro/ZCS Hub, read passively over its local WebSocket._
+
+### Added
+- **`zcs_hub_ws` reader** (`reader_type: "zcs_hub_ws"`) — talks to the Azzurro/ZCS
+  Hub on its local, unauthenticated WebSocket (fixed port **55558**): sends
+  `{"head":"stsreq"}` and forwards the `body` of the `status` reply **verbatim**
+  as `{"read_at": <float>, "zcs": {"status": ...}}`. Thin relay as ever: no value
+  is parsed on the Pi. The WS was chosen over the documented Modbus TCP 55400
+  because the hub's Modbus accepts **one connection per port** (a reader would
+  lock out the customer's own cloud), while the WS is multi-client and exposes
+  ~90 quantities per inverter including **native MPPTs**.
+  **Read-only:** the same socket is also the hub's control channel — the reader
+  never sends `scan`/`cmd`/`kill_app`/`cfg_refresh`.
+- **Zero-dependency WebSocket client** (RFC 6455, ~100 lines on `socket`+`struct`):
+  masked client frames, 7/16/64-bit lengths, continuation reassembly, ping→pong,
+  one overall deadline (default 20s, live the status lands in ~0.1s), socket
+  always closed. Any network/protocol/JSON failure surfaces as `ReaderError` —
+  the only exception the agent catches.
+- **`discover()` on the ZCS hub** returns the inverter roster only
+  (`serial`/`index`/`status`/`modbus_addr` from `STS__INVERTER_SCAN`, empty slots
+  skipped, empty field → `None` never `0`); the 156 KB status is not re-forwarded
+  there, telemetry already carries it.
+
+### Notes
+- `fetch_history_curves` is **not** implemented for `zcs_hub_ws`: the contract
+  default (`None`) stands, so an on-demand history command gets an honest
+  "not supported" ack instead of a fabricated curve.
+- No LAN auto-discovery for this reader: `datalogger_ip` is required (absent →
+  `ReaderError`). The inline discovery in `main.py` stays solarlog-only.
+
 ## [0.4.3] — 2026-08-02
 
 _On-demand history hardened for big/slow dataloggers (Curinga: 97 inverters)._

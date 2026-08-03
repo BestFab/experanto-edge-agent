@@ -20,8 +20,10 @@ tls_insecure: false              # DEV ONLY — never true in production
 
 # --- local datalogger ---
 reader_type: "solarlog_getjp"    # Solar-Log Base 2000 local getjp API
-datalogger_ip: ""                # e.g. 192.168.1.50 (auto-discovered if empty)
-datalogger_port: 80
+                                 # "zcs_hub_ws" = Azzurro/ZCS Hub, local WebSocket on the
+                                 # fixed port 55558 (datalogger_ip REQUIRED, no discovery)
+datalogger_ip: ""                # e.g. 192.168.1.50 (auto-discovered if empty, solarlog only)
+datalogger_port: 80              # solarlog_getjp only (the ZCS hub port is fixed)
 
 # --- behaviour ---
 interval: 300                    # seconds between cycles (= worker poll rate)

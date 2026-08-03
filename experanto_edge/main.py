@@ -25,6 +25,7 @@ from .commands import CommandDispatcher
 from .config import Config
 from .readers.base import Reader, ReaderError
 from .readers.solarlog_getjp import SolarlogGetjpReader
+from .readers.zcs_hub_ws import ZcsHubWsReader
 from .transport import MqttTransport, Transport, TransportError
 
 log = logging.getLogger("experanto-edge")
@@ -37,6 +38,10 @@ READERS = {
         collect_detail=cfg.collect_inverter_detail,
         history_spacing=getattr(cfg, "history_spacing", 0.0),
     ),
+    # Azzurro/ZCS Hub: WebSocket locale non autenticato, porta FISSA 55558 (non
+    # `datalogger_port`, che e' la porta HTTP del Solar-Log). Nessun autodiscovery:
+    # senza `datalogger_ip` il reader solleva ReaderError.
+    "zcs_hub_ws": lambda cfg: ZcsHubWsReader(cfg.datalogger_ip),
 }
 
 

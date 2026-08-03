@@ -3,7 +3,10 @@
 # Usage:
 #   sudo ./install.sh --code EXP-XXXX-XXXX --secret <SECRET> [--station <UUID>] \
 #                     [--host-code EXP-YYYY] [--broker mqtt.experanto.it] [--datalogger-ip 192.168.1.50] \
+#                     [--reader-type solarlog_getjp] \
 #                     [--wg-endpoint vps:51820 --wg-hub-pubkey <KEY> --wg-address 10.8.0.5/32 [--wg-persistent]]
+# --reader-type = tipo di reader del datalogger (dal DB via enroll-exchange sui Pi
+# nuovi: il server e' autorevole). Assente -> resta il default del config template.
 # --host-code = device_code of the Pi HOST this instance runs on (its own code on a
 # self-host): goes into up/status as a self-report the server cross-checks against the
 # operator-set host link (never an authority). Pass `--host-code -` to CLEAR a stale
@@ -44,7 +47,7 @@ fi
 [[ -f "$SRC_DIR/wg_provision.sh" ]] && source "$SRC_DIR/wg_provision.sh"
 
 CODE=""; SECRET=""; STATION=""; HOST_CODE=""; BROKER=""; DL_IP=""; UPD_URL=""; UPD_KEY=""
-WG_ENDPOINT=""; WG_HUB_PUBKEY=""; WG_ADDRESS=""; WG_SSH_USER=""; WG_PERSISTENT=""
+RTYPE=""; WG_ENDPOINT=""; WG_HUB_PUBKEY=""; WG_ADDRESS=""; WG_SSH_USER=""; WG_PERSISTENT=""
 WG_AUTO=""; SERVER="${EXPERANTO_SERVER:-https://web.experanto.it}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -54,6 +57,7 @@ while [[ $# -gt 0 ]]; do
     --host-code) HOST_CODE="$2"; shift 2;;
     --broker) BROKER="$2"; shift 2;;
     --datalogger-ip) DL_IP="$2"; shift 2;;
+    --reader-type) RTYPE="$2"; shift 2;;
     --update-base-url) UPD_URL="$2"; shift 2;;
     --update-pubkey) UPD_KEY="$2"; shift 2;;
     --wg-endpoint) WG_ENDPOINT="$2"; shift 2;;
@@ -143,6 +147,9 @@ elif [[ -n "$STATION" ]]; then ENROLL="$ENROLL:$STATION"; fi
 EXPERANTO_EDGE_CONFIG="$CFG" "$APP_DIR/current/venv/bin/experanto-edge" --enroll "$ENROLL" || true
 if [[ -n "$BROKER" ]]; then sed -i "s/^broker_host:.*/broker_host: \"$BROKER\"/" "$CFG"; fi
 if [[ -n "$DL_IP" ]]; then sed -i "s/^datalogger_ip:.*/datalogger_ip: \"$DL_IP\"/" "$CFG"; fi
+# reader_type dal server (enroll-exchange/console): il DB e' autorevole gia' al
+# primo boot (G7). Assente -> resta il default del config template.
+if [[ -n "$RTYPE" ]]; then sed -i "s/^reader_type:.*/reader_type: \"$RTYPE\"/" "$CFG"; fi
 # OTA config (delimitatore | perche' URL/base64 contengono /)
 if [[ -n "$UPD_URL" ]]; then sed -i "s|^update_base_url:.*|update_base_url: \"$UPD_URL\"|" "$CFG"; fi
 if [[ -n "$UPD_KEY" ]]; then sed -i "s|^update_public_key:.*|update_public_key: \"$UPD_KEY\"|" "$CFG"; fi
